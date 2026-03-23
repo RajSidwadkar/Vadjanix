@@ -1,0 +1,10 @@
+{
+  "agent_id": "vadjanix-alpha-01",
+  "name": "Vadjanix Diplomat",
+  "version": "2026.3.14",
+  "capabilities": ["negotiation", "scheduling", "privacy-gatekeeping"],
+  "endpoints": {
+    "nostr": "wss://relay.damus.io",
+    "a2a": "https://your-proxy-link.com/a2a"
+  }
+}

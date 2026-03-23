@@ -1,0 +1,25 @@
+{
+  "name": "vadjanix",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx index.ts",
+    "test": "tsx tests/validate_system.ts",
+    "test:memory": "tsx tests/validate_memory.ts",
+    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "dotenv": "^16.6.1",
+    "openai": "^6.32.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.15",
+    "husky": "^9.1.7",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
