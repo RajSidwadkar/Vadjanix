@@ -6,13 +6,15 @@
     "start": "tsx index.ts",
     "test": "tsx tests/validate_system.ts",
     "test:memory": "tsx tests/validate_memory.ts",
-    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts && tsx tests/validate_brain.ts",
+    "test:router": "tsx tests/validate_router.ts",
+    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts && tsx tests/validate_brain.ts && tsx tests/validate_router.ts",
     "prepare": "husky"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "dotenv": "^16.6.1",
+    "nostr-tools": "^2.23.3",
     "openai": "^6.32.0",
     "zod": "^3.25.76"
   },

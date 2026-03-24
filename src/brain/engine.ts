@@ -4,19 +4,7 @@ import { z } from 'zod';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import 'dotenv/config';
 
-// 1. Internal Zod Schema
-export const IntentPacketSchema = z.object({
-  from: z.string(),
-  to: z.string(),
-  action: z.enum(["read", "write", "propose", "query", "call", "refuse"]),
-  payload: z.object({
-    message: z.string(),
-    details: z.record(z.any()).optional()
-  }),
-  reasoning: z.string()
-}).strict();
-
-export type IntentPacket = z.infer<typeof IntentPacketSchema>;
+import { IntentPacketSchema, IntentPacket } from '../router/schema.js';
 
 /**
  * 1.5 Deterministic Pre-Check Layer

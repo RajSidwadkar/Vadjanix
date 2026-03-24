@@ -62,18 +62,19 @@ async function runTests() {
   // 4. Packet Schema Test (Zod Guard)
   try {
     // Missing 'to' field and 'reasoning'
-    await routePacket({ 
+    const res = await routePacket({ 
         from: "vadjanix://agent-alpha", 
         action: "read", 
         payload: { message: "test" }
     } as any);
-    results.push({ name: "Packet Schema Test", status: 'FAIL', details: "Router accepted a malformed packet." });
-  } catch (e: any) {
-    if (e.message.includes("VALIDATION ERROR") || e.message.includes("Required") || e.message.includes("invalid_type")) {
-      results.push({ name: "Packet Schema Test", status: 'PASS', details: "Zod Guard correctly caught malformed packet." });
+    
+    if (res.status === 400 && res.error?.includes("VALIDATION ERROR")) {
+      results.push({ name: "Packet Schema Test", status: 'PASS', details: "Zod Guard correctly caught malformed packet via Status 400." });
     } else {
-      results.push({ name: "Packet Schema Test", status: 'FAIL', details: `Router threw wrong error: ${e.message}` });
+      results.push({ name: "Packet Schema Test", status: 'FAIL', details: `Router should have returned 400, but got ${res.status}: ${res.error}` });
     }
+  } catch (e: any) {
+    results.push({ name: "Packet Schema Test", status: 'FAIL', details: `Router threw an unexpected exception: ${e.message}` });
   }
 
   // Summary Table
