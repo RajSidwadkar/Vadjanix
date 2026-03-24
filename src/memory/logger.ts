@@ -1,66 +1,35 @@
-import { mkdir, appendFile, access, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import fs from 'fs/promises';
+import path from 'path';
 
-const MEMORY_DIR = 'memory';
-const CONTEXT_LOG_PATH = join(MEMORY_DIR, 'context_log.md');
-const DEALS_PATH = join(MEMORY_DIR, 'deals.md');
-
-async function ensureDirectory() {
-    try {
-        await mkdir(MEMORY_DIR, { recursive: true });
-    } catch (error) {
-        // Directory already exists or error
-    }
-}
-
-async function ensureFile(path: string, initialContent: string = '') {
-    try {
-        await access(path);
-    } catch {
-        await writeFile(path, initialContent);
-    }
-}
-
-function getTimestamp() {
-    return new Date().toISOString().replace('T', ' ').split('.')[0];
-}
-
-/**
- * Appends a session transcript to context_log.md.
- */
-export async function appendContext(
-    counterparty: string,
-    userMessage: string,
-    agentAction: string,
-    agentResponse: string
-) {
-    await ensureDirectory();
-    await ensureFile(CONTEXT_LOG_PATH);
-
-    const timestamp = getTimestamp();
-    const entry = `\n## [${timestamp}] - Session with [${counterparty}]\n` +
-                  `**Them:** ${userMessage}\n` +
-                  `**Agent:** ${agentAction} / ${agentResponse}\n`;
-
-    await appendFile(CONTEXT_LOG_PATH, entry);
-}
-
-/**
- * Logs a deal to deals.md as a Markdown table row.
- */
 export async function logDeal(
-    counterparty: string,
-    amount: string,
-    result: 'Pending' | 'Accepted' | 'Refused',
-    reasoning: string
+  counterparty: string,
+  amount: string,
+  result: 'Accepted' | 'Refused',
+  reasoning: string
 ) {
-    await ensureDirectory();
-    const header = '| Timestamp | Counterparty | Amount/Offer | Result (Pending/Accepted/Refused) | Reasoning |\n' +
-                   '| :--- | :--- | :--- | :--- | :--- |\n';
-    await ensureFile(DEALS_PATH, header);
+  const memoryDir = path.join(process.cwd(), 'memory');
+  const dealsPath = path.join(memoryDir, 'deals.md');
+  const timestamp = new Date().toISOString();
 
-    const timestamp = getTimestamp();
-    const row = `| ${timestamp} | ${counterparty} | ${amount} | ${result} | ${reasoning} |\n`;
+  const tableHeader = `| Timestamp | Counterparty | Amount | Result | Reasoning |\n|---|---|---|---|---|\n`;
+  const row = `| ${timestamp} | ${counterparty} | ${amount} | ${result} | ${reasoning} |\n`;
 
-    await appendFile(DEALS_PATH, row);
+  try {
+    await fs.mkdir(memoryDir, { recursive: true });
+    
+    let fileExists = true;
+    try {
+      await fs.access(dealsPath);
+    } catch {
+      fileExists = false;
+    }
+
+    if (!fileExists) {
+      await fs.writeFile(dealsPath, tableHeader + row, 'utf-8');
+    } else {
+      await fs.appendFile(dealsPath, row, 'utf-8');
+    }
+  } catch (error) {
+    console.error("❌ Deal Logging Failed:", error);
+  }
 }

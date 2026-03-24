@@ -17,9 +17,9 @@ async function testSoulConstraint() {
      } catch (error) {
         // This check tells TypeScript: "If this is a real Error object, let me see the message."
         if (error instanceof Error) {
-            console.error("❌ Test Failed:", error.message);
+            console.error("Test Failed:", error.message);
         } else {
-            console.error("❌ Test Failed:", String(error));
+            console.error("Test Failed:", String(error));
         }
     }
 }

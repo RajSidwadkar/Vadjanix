@@ -5,16 +5,52 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import 'dotenv/config';
 
 // 1. Internal Zod Schema
-const IntentPacketSchema = z.object({
-  from: z.string().default('vadjanix://brain'),
-  to: z.string().default('user'),
-  action: z.enum(['read', 'write', 'propose', 'query', 'call', 'refuse']),
+export const IntentPacketSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  action: z.enum(["read", "write", "propose", "query", "call", "refuse"]),
   payload: z.object({
     message: z.string(),
-    details: z.record(z.any()).optional().default({})
+    details: z.record(z.any()).optional()
   }),
-  reasoning: z.string().default('Automated alignment.')
-});
+  reasoning: z.string()
+}).strict();
+
+export type IntentPacket = z.infer<typeof IntentPacketSchema>;
+
+/**
+ * 1.5 Deterministic Pre-Check Layer
+ * Runs hardcoded regex checks to bypass LLM calls for clear violations.
+ */
+function runDeterministicPreCheck(userPrompt: string): any | null {
+  // Rule 1: Minimum Rate Check ($250)
+  const rateMatch = userPrompt.match(/\$(\d+)/);
+  if (rateMatch) {
+    const amount = parseInt(rateMatch[1], 10);
+    if (amount < 250) {
+      return {
+        from: 'vadjanix://brain',
+        to: 'user',
+        action: 'refuse',
+        payload: { message: 'I decline. My minimum engagement rate is $250.' },
+        reasoning: 'Deterministic Guardrail: Minimum Rate Violation'
+      };
+    }
+  }
+
+  // Rule 2: Monday Prohibition
+  if (/monday/i.test(userPrompt)) {
+    return {
+      from: 'vadjanix://brain',
+      to: 'user',
+      action: 'refuse',
+      payload: { message: 'I do not schedule synchronous interactions on Mondays.' },
+      reasoning: 'Deterministic Guardrail: Monday Prohibition'
+    };
+  }
+
+  return null;
+}
 
 // 2. Memory Reader
 export async function loadRecentMemory(): Promise<string> {
@@ -29,23 +65,43 @@ export async function loadRecentMemory(): Promise<string> {
 }
 
 // 3. Memory Writer
-export async function logInteraction(userPrompt: string, packet: z.infer<typeof IntentPacketSchema>) {
+export async function logInteraction(userPrompt: string, packet: z.infer<typeof IntentPacketSchema>, counterpartyId: string = "user_default") {
   const memoryDir = path.join(process.cwd(), 'memory');
   const contextLogPath = path.join(memoryDir, 'context_log.md');
   const timestamp = new Date().toISOString();
-  const logEntry = `\n## [${timestamp}]\n**Them:** ${userPrompt}\n**Vadjanix (${packet.action}):** ${packet.payload.message}\n`;
+
+  // Extract dollar amount from user prompt for state tracking
+  const amountMatch = userPrompt.match(/\$(\d+(?:,\d+)*(?:\.\d+)?)/);
+  const offerAmount = amountMatch ? amountMatch[0] : "N/A";
+
+  const logEntry = `
+## [${timestamp}] - Counterparty: ${counterpartyId}
+- **State Transition:** ${packet.action.toUpperCase()}
+- **Offer Detected:** ${offerAmount}
+- **Reasoning:** ${packet.reasoning}
+- **Them:** "${userPrompt}"
+- **Vadjanix:** "${packet.payload.message}"
+`;
 
   try {
     await fs.mkdir(memoryDir, { recursive: true });
     await fs.appendFile(contextLogPath, logEntry, 'utf-8');
   } catch (error) {
-    console.error("❌ Memory Write Failed:", error);
+    console.error("Memory Write Failed:", error);
   }
 }
 
 
 // 4. Gemini Engine with TypeScript Override
 export async function generateIntent(userPrompt: string) {
+  // Intercept with deterministic guardrails
+  const guardrailTrip = runDeterministicPreCheck(userPrompt);
+  if (guardrailTrip) {
+    const validatedPacket = IntentPacketSchema.parse(guardrailTrip);
+    await logInteraction(userPrompt, validatedPacket);
+    return validatedPacket;
+  }
+
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY in .env");
 
   const soulPath = path.join(process.cwd(), 'soul');
@@ -114,7 +170,11 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
    - If your action is "refuse", explicitly state the rule they broke in your response (e.g., "I decline. My minimum engagement rate is $250.").
 
 3. HOW TO WRITE THE "reasoning":
-   - Name the exact rule/file from the CONSTITUTION you are applying.`;
+   - Name the exact rule/file from the CONSTITUTION you are applying.
+
+4. STATIC ROUTING FIELDS:
+   - The "from" field MUST always be exactly: "vadjanix://brain"
+   - The "to" field MUST always be exactly: "user"`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -123,7 +183,7 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
     const parsed = JSON.parse(responseText);
     const validatedPacket = IntentPacketSchema.parse(parsed);
 
-    logInteraction(userPrompt, validatedPacket).catch(console.error);
+    await logInteraction(userPrompt, validatedPacket).catch(console.error);
 
     return validatedPacket;
   } catch (error: any) {

@@ -6,7 +6,7 @@
     "start": "tsx index.ts",
     "test": "tsx tests/validate_system.ts",
     "test:memory": "tsx tests/validate_memory.ts",
-    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts",
+    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts && tsx tests/validate_brain.ts",
     "prepare": "husky"
   },
   "dependencies": {
