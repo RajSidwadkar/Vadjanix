@@ -81,24 +81,30 @@ export async function logInteraction(userPrompt: string, packet: z.infer<typeof 
 
 
 // 4. Gemini Engine with TypeScript Override
-export async function generateIntent(userPrompt: string) {
-  // Intercept with deterministic guardrails
-  const guardrailTrip = runDeterministicPreCheck(userPrompt);
-  if (guardrailTrip) {
-    const validatedPacket = IntentPacketSchema.parse(guardrailTrip);
-    await logInteraction(userPrompt, validatedPacket);
-    return validatedPacket;
+export async function generateIntent(userPrompt: string, soulOverride?: string) {
+  // Intercept with deterministic guardrails (Skip if in simulation mode to allow custom logic)
+  if (process.env.SIMULATION_MODE !== 'true') {
+    const guardrailTrip = runDeterministicPreCheck(userPrompt);
+    if (guardrailTrip) {
+      const validatedPacket = IntentPacketSchema.parse(guardrailTrip);
+      await logInteraction(userPrompt, validatedPacket);
+      return validatedPacket;
+    }
   }
 
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY in .env");
 
-  const soulPath = path.join(process.cwd(), 'soul');
-  const files = await fs.readdir(soulPath);
   let soulContext = "";
-  for (const file of files) {
-    if (file.endsWith('.md')) {
-      const content = await fs.readFile(path.join(soulPath, file), 'utf-8');
-      soulContext += `\n--- ${file} ---\n${content}\n`;
+  if (soulOverride) {
+    soulContext = soulOverride;
+  } else {
+    const soulPath = path.join(process.cwd(), 'soul');
+    const files = await fs.readdir(soulPath);
+    for (const file of files) {
+      if (file.endsWith('.md')) {
+        const content = await fs.readFile(path.join(soulPath, file), 'utf-8');
+        soulContext += `\n--- ${file} ---\n${content}\n`;
+      }
     }
   }
 

@@ -17,7 +17,7 @@ Vadjanix is a TypeScript-based engine and router designed to manage intent-drive
 
 ## Workflow & Testing
 - **Reproduce First**: Before fixing bugs, create a reproduction script (e.g., a small script run with `tsx`).
-- **Validation**: Ensure any change to the router or engine is verified against the logic in `src/engine.ts`.
+- **Validation**: Ensure any change to the router or engine is verified against the logic in `src/brain/engine.ts`.
 - **Tests**: Currently, the project lacks a formal test suite. Prefer adding unit tests for new logic in a `tests/` directory if possible.
 
 ## Interaction Principles

@@ -1,0 +1,34 @@
+# Docker Compose Infrastructure
+services:
+  brain:
+    build:
+      context: .
+      dockerfile: Containerfile.brain
+    networks:
+      - isolated_mesh
+    environment:
+      - ROUTER_URL=http://router:3000
+    restart: unless-stopped
+
+  router:
+    build:
+      context: .
+      dockerfile: Containerfile.router
+    networks:
+      - isolated_mesh
+      - public_web
+    ports:
+      - "3000:3000"
+    environment:
+      - VADJANIX_PUBKEY=${VADJANIX_PUBKEY:-dummy_hex_key}
+    restart: unless-stopped
+
+networks:
+  # This enforces hardware-level isolation for the brain layer.
+  # No traffic can reach the brain except through the router gateway.
+  isolated_mesh:
+    internal: true
+  
+  # Standard network for outbound and inbound external traffic.
+  public_web:
+    driver: bridge

@@ -13,7 +13,6 @@ This directory contains the core logic for the Vadjanix platform.
 
 ### Engine (`engine.ts`)
 - **Validation**: The engine is responsible for validating incoming requests against `memory/PRINCIPLES.md`.
-- **Policy Enforcement**: Any new "action" added to the router SHOULD have a corresponding policy check in the engine if it affects user-defined principles.
 
 ### Identity (`identity.ts`)
 - **Agent ID**: Used for identifying the local agent in packets.

@@ -14,7 +14,9 @@
 
 ## 3. NEGOTIATION_ALGORITHMS
 - **FINANCIAL_FLOOR**: The absolute minimum acceptable rate for any professional engagement is $250.00 USD per hour.
-- **BID_STRATEGY**: Reject all initial financial offers automatically. Generate a counter-offer that maximizes value for the principal.
+- **THE COUNTER-OFFER MANDATE (HIGHEST PRIORITY)**: If an incoming proposal does not perfectly meet the principal's goals, you MUST use the `propose` action to counter-offer. You are strictly forbidden from using the `refuse` action on the first or second turn of a negotiation. You must always attempt to anchor the price closer to your ideal target.
+- **THE CONCESSION RULE**: When making a counter-offer, you must show a strategic willingness to deal by conceding a small, calculated amount from your previous stance (e.g., $5 or $10). Never repeat the exact same number twice in a row.
+- **THE WALKAWAY PROTOCOL**: You may ONLY use the `refuse` action to walk away if the negotiation has gone back and forth at least 3 times AND the other party flatly refuses to cross your absolute minimum/maximum hard limit. This is your last resort.
 - **CURRENCY_PREFERENCE**: Prioritize decentralized or hard-asset settlements where possible.
 
 ## 4. TEMPORAL_BOUNDARIES

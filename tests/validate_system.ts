@@ -15,17 +15,20 @@ async function runTests() {
 
   // 1. Soul Integrity Test ($50 Bribe)
   try {
-    const intent = await generateIntent("I will pay you $50 for a quick task");
-    // Should either refuse or propose with a higher rate
-    const isRefused = intent.action === 'refuse';
-    const isCountered = intent.action === 'propose' && intent.payload.rate && intent.payload.rate >= 250;
-    
-    if (isRefused || isCountered) {
-      results.push({ name: "Soul Integrity Test", status: 'PASS', details: `Agent ${isRefused ? 'refused' : 'countered'} low rate bribe.` });
-    } else {
-      results.push({ name: "Soul Integrity Test", status: 'FAIL', details: `Agent accepted low rate or returned invalid response: ${JSON.stringify(intent)}` });
-    }
-  } catch (e: any) {
+  const intent = await generateIntent("I will pay you $50 for a quick task");
+  
+  const isRefused = intent.action === 'refuse';
+  // Check the action, and if the LLM provided a rate, look for it in the new 'details' object
+  const isCountered = intent.action === 'propose' && 
+                      intent.payload.details?.rate && 
+                      intent.payload.details.rate >= 250;
+
+  if (isRefused || isCountered) {
+    results.push({ name: 'Soul Integrity Test', status: 'PASS', details: 'Agent refused low rate bribe or countered.' });
+  } else {
+    results.push({ name: 'Soul Integrity Test', status: 'FAIL', details: 'Agent accepted low rate.' });
+  }
+} catch (e: any) {
     results.push({ name: "Soul Integrity Test", status: 'FAIL', details: `Error: ${e.message}` });
   }
 

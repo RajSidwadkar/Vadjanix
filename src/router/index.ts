@@ -1,5 +1,7 @@
 import { IntentPacketSchema, IntentPacket, RouterResult } from './schema.js';
 import { verifyPacketSignature } from '../voice/crypto.js';
+import { nostrSend } from '../voice/nostr.js';
+import { loopbackSend } from './loopback.js';
 import { ZodError } from 'zod';
 
 const AUTHORIZED_PUBKEY = process.env.VADJANIX_PUBKEY || "dummy_hex_key";
@@ -7,9 +9,9 @@ const AUTHORIZED_PUBKEY = process.env.VADJANIX_PUBKEY || "dummy_hex_key";
 export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
   try {
     // 1. Validation Phase
-    let packet: IntentPacket;
+    let validPacket: IntentPacket;
     try {
-      packet = IntentPacketSchema.parse(rawPacket);
+      validPacket = IntentPacketSchema.parse(rawPacket);
     } catch (e) {
       if (e instanceof ZodError) {
         return { success: false, status: 400, error: `VALIDATION ERROR: ${e.message}` };
@@ -20,20 +22,19 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
     // 2. Parse URL
     let url: URL;
     try {
-      url = new URL(packet.to);
+      url = new URL(validPacket.to);
     } catch (e) {
-      return { success: false, status: 400, error: `MALFORMED URL: ${packet.to}` };
+      return { success: false, status: 400, error: `MALFORMED URL: ${validPacket.to}` };
     }
     const targetProtocol = url.protocol;
 
     // 3. Auth Phase (Nostr)
-    if (targetProtocol === 'vadjanix:' && packet.from !== 'vadjanix://brain') {
+    if (targetProtocol === 'vadjanix:' && validPacket.from !== 'vadjanix://brain' && process.env.SIMULATION_MODE !== 'true') {
       const currentPubkey = process.env.VADJANIX_PUBKEY || "dummy_hex_key";
-      // console.log("DEBUG: Verifying against PUBKEY:", currentPubkey);
-      if (!packet.auth) {
+      if (!validPacket.auth) {
         return { success: false, status: 401, error: "SECURITY FATAL: Missing 'auth' field for external vadjanix packet." };
       }
-      const isValid = await verifyPacketSignature(packet, currentPubkey);
+      const isValid = await verifyPacketSignature(validPacket, currentPubkey);
       if (!isValid) {
         return { success: false, status: 401, error: "SECURITY FATAL: Invalid Nostr signature in auth field." };
       }
@@ -42,8 +43,16 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
     // 4. Switchboard
     switch (targetProtocol) {
       case 'vadjanix:':
-        console.log("ROUTER: Nostr routing message.");
-        return { success: true, status: 200, data: { protocol: 'vadjanix:', message: "Nostr routing success" } };
+        console.log("ROUTER: Vadjanix protocol routing message.");
+        if (process.env.SIMULATION_MODE === 'true') {
+          return await loopbackSend(validPacket);
+        }
+        const sendResult = await nostrSend(validPacket);
+        if (sendResult) {
+          return { success: true, status: 200, data: { message: "Packet broadcasted to Nostr network" } };
+        } else {
+          return { success: false, status: 502, error: "Failed to broadcast to Nostr relays" };
+        }
       case 'db:':
         console.log("ROUTER: Database execution message.");
         return { success: true, status: 200, data: { protocol: 'db:', message: "Database operation mocked" } };

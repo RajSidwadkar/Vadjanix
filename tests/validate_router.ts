@@ -77,9 +77,10 @@ async function main() {
 
     // Test 5: The 200 OK (Cryptographically Verified)
     await runTest("The 200 OK (Cryptographically Verified)", async () => {
+        const dummyTargetPk = "0000000000000000000000000000000000000000000000000000000000000001";
         const packet: IntentPacket = {
             from: "vadjanix://external-agent",
-            to: "vadjanix://network",
+            to: `vadjanix://${dummyTargetPk}`,
             action: "read",
             payload: { message: "Authenticated call" },
             reasoning: "Signed test"
@@ -114,9 +115,10 @@ async function main() {
 
     if (failureCount > 0) {
         console.error(`\n❌ Integration suite failed with ${failureCount} errors.`);
-        process.exit(1);
-    } else {
+        process.exit(1); 
+       } else {
         console.log("\n✅ All Router Integration Tests Passed!");
+        process.exit(0);
     }
 }
 
