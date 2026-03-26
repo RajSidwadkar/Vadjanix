@@ -8,6 +8,7 @@ import { IntentPacketSchema, IntentPacket } from '../router/schema.js';
 import { handleChat } from './chat.js';
 import { executeTask } from './task_runner.js';
 import { evaluateProposal } from './negotiator.js';
+import { logDecision } from '../memory/audit.js';
 
 /**
  * Loads the core principles/constitution from the soul directory.
@@ -246,11 +247,24 @@ export async function processIncomingPacket(packet: IntentPacket): Promise<Inten
     case 'read':
     case 'write': {
       outboundPacket = await handleChat(packet, principles);
+      await logDecision(
+        packet.action,
+        `Message: "${packet.payload.message.substring(0, 30)}..."`,
+        'Conversational Protocol',
+        'Generated chat response.'
+      );
       break;
     }
 
     case 'call': {
       outboundPacket = await executeTask(packet);
+      const task_name = (packet.payload.details as any)?.task_name;
+      await logDecision(
+        'call',
+        `Task: ${task_name}`,
+        'Registry Execution Pattern',
+        outboundPacket.action === 'write' ? 'Task executed successfully.' : 'Task failed or unauthorized.'
+      );
       break;
     }
 
@@ -263,6 +277,12 @@ export async function processIncomingPacket(packet: IntentPacket): Promise<Inten
         payload: { message: "Action not recognized or unsupported by Brain switchboard." },
         reasoning: `Unhandled action: ${packet.action}`
       };
+      await logDecision(
+        'refuse',
+        `Action: ${packet.action}`,
+        'Switchboard Guardrail',
+        'Refused due to unsupported action.'
+      );
     }
   }
 

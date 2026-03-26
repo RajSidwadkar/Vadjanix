@@ -1,18 +1,19 @@
 import { IntentPacket } from '../router/schema.js';
+import { logDecision } from '../memory/audit.js';
 
-export function evaluateProposal(
+export async function evaluateProposal(
   strategy: 'compromise' | 'hold_firm' | 'walk_away',
   role: 'buyer' | 'seller',
   limit: number,
   myLastOffer: number,
   concessionStep: number
-): IntentPacket {
+): Promise<IntentPacket> {
   let newOffer = myLastOffer;
   let message = '';
   let reasoning = `Strategy: ${strategy}. Role: ${role}. Limit: ${limit}. Last Offer: ${myLastOffer}.`;
 
   if (strategy === 'walk_away') {
-    return {
+    const packet: IntentPacket = {
       from: 'vadjanix://negotiator',
       to: 'opponent',
       action: 'refuse',
@@ -21,6 +22,15 @@ export function evaluateProposal(
       },
       reasoning: "Walk away strategy chosen."
     };
+
+    await logDecision(
+      'refuse',
+      `Negotiation for ${role} (Limit: ${limit}, Last: ${myLastOffer})`,
+      'Walk Away Protocol',
+      'Terminated negotiation.'
+    );
+
+    return packet;
   }
 
   if (strategy === 'hold_firm') {
@@ -46,7 +56,7 @@ export function evaluateProposal(
     message += ' [FINAL OFFER]';
   }
 
-  return {
+  const packet: IntentPacket = {
     from: 'vadjanix://negotiator',
     to: 'opponent',
     action: 'propose',
@@ -58,4 +68,13 @@ export function evaluateProposal(
     },
     reasoning: reasoning
   };
+
+  await logDecision(
+    'propose',
+    `Counter-offer for ${role} (Last: ${myLastOffer}, Step: ${concessionStep})`,
+    `${finalStrategy === 'hold_firm' ? 'Hard Ceiling/Floor Rule' : 'Monotonic Bidding Rule'}`,
+    `Counter-offer of $${newOffer}`
+  );
+
+  return packet;
 }

@@ -2,6 +2,7 @@ import { IntentPacketSchema, IntentPacket, RouterResult } from './schema.js';
 import { verifyPacketSignature } from '../voice/crypto.js';
 import { nostrSend } from '../voice/nostr.js';
 import { loopbackSend } from './loopback.js';
+import { routeToGoogleA2A, routeToOpenAIAgent } from './adapters.js';
 import { ZodError } from 'zod';
 
 const AUTHORIZED_PUBKEY = process.env.VADJANIX_PUBKEY || "dummy_hex_key";
@@ -66,6 +67,10 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
       case 'http:':
         console.log("ROUTER: Native Fetch message.");
         return { success: true, status: 200, data: { protocol: targetProtocol, message: "Fetch operation mocked" } };
+      case 'google-a2a:':
+        return await routeToGoogleA2A(validPacket);
+      case 'openai-agent:':
+        return await routeToOpenAIAgent(validPacket);
       default:
         return { success: false, status: 404, error: `ROUTING FATAL: Unsupported protocol prefix ${targetProtocol}` };
     }
