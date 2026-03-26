@@ -123,7 +123,19 @@ export async function generateIntent(userPrompt: string, soulOverride?: string) 
       },
       payload: {
         type: SchemaType.OBJECT,
-        properties: { message: { type: SchemaType.STRING } },
+        properties: { 
+          message: { type: SchemaType.STRING },
+          details: {
+            type: SchemaType.OBJECT,
+            properties: {
+              strategy: { 
+                type: SchemaType.STRING, 
+                enum: ['compromise', 'hold_firm', 'walk_away']
+              }
+            },
+            required: ["strategy"]
+          }
+        },
         required: ["message"]
       },
       reasoning: { type: SchemaType.STRING }

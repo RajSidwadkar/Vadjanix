@@ -6,12 +6,32 @@ export const IntentPacketSchema = z.object({
   action: z.enum(["read", "write", "propose", "query", "call", "refuse"]),
   payload: z.object({
     message: z.string(),
-    details: z.record(z.any()).optional()
+    details: z.object({
+      strategy: z.enum(['compromise', 'hold_firm', 'walk_away']).optional(),
+      rate: z.number().optional()
+    }).strict().optional()
   }),
   auth: z.string().optional(),
   reply_to: z.string().optional(),
   reasoning: z.string()
-}).strict();
+}).strict().superRefine((data, ctx) => {
+  if (data.action === 'propose') {
+    if (!data.payload.details?.strategy) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Propose action MUST have a strategy in details",
+        path: ["payload", "details", "strategy"]
+      });
+    }
+    if (data.payload.details?.rate !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Propose action MUST NOT contain a raw rate number in details. Use a strategy instead.",
+        path: ["payload", "details", "rate"]
+      });
+    }
+  }
+});
 
 export type IntentPacket = z.infer<typeof IntentPacketSchema>;
 
