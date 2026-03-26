@@ -7,7 +7,9 @@
     "test": "tsx tests/validate_system.ts",
     "test:memory": "tsx tests/validate_memory.ts",
     "test:router": "tsx tests/validate_router.ts",
-    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts && tsx tests/validate_brain.ts && tsx tests/validate_router.ts && tsx tests/validate_agent_card.ts && tsx tests/validate_zero_trust.ts",
+    "test:chat": "tsx tests/test_chat.ts",
+    "test:negotiator": "tsx tests/test_negotiator.ts",
+    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_memory.ts && tsx tests/validate_brain.ts && tsx tests/validate_router.ts && tsx tests/validate_agent_card.ts && tsx tests/validate_zero_trust.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts",
     "prepare": "husky"
   },
   "dependencies": {
