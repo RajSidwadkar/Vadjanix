@@ -5,6 +5,29 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import 'dotenv/config';
 
 import { IntentPacketSchema, IntentPacket } from '../router/schema.js';
+import { handleChat } from './chat.js';
+import { executeTask } from './task_runner.js';
+import { evaluateProposal } from './negotiator.js';
+
+/**
+ * Loads the core principles/constitution from the soul directory.
+ */
+async function loadSoulContext(): Promise<string> {
+  let soulContext = "";
+  const soulPath = path.join(process.cwd(), 'soul');
+  try {
+    const files = await fs.readdir(soulPath);
+    for (const file of files) {
+      if (file.endsWith('.md')) {
+        const content = await fs.readFile(path.join(soulPath, file), 'utf-8');
+        soulContext += `\n--- ${file} ---\n${content}\n`;
+      }
+    }
+  } catch (error) {
+    console.error("Failed to load soul context:", error);
+  }
+  return soulContext;
+}
 
 /**
  * 1.5 Deterministic Pre-Check Layer
@@ -94,19 +117,7 @@ export async function generateIntent(userPrompt: string, soulOverride?: string) 
 
   if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY in .env");
 
-  let soulContext = "";
-  if (soulOverride) {
-    soulContext = soulOverride;
-  } else {
-    const soulPath = path.join(process.cwd(), 'soul');
-    const files = await fs.readdir(soulPath);
-    for (const file of files) {
-      if (file.endsWith('.md')) {
-        const content = await fs.readFile(path.join(soulPath, file), 'utf-8');
-        soulContext += `\n--- ${file} ---\n${content}\n`;
-      }
-    }
-  }
+  let soulContext = soulOverride || await loadSoulContext();
 
   const recentMemory = await loadRecentMemory();
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -196,4 +207,80 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
     console.error("GEMINI ENGINE ERROR:", error);
     throw new Error(`BRAIN_ERROR: ${error.message}`);
   }
+}
+
+/**
+ * Switchboard for incoming packets. 
+ * Routes to Negotiator, Chat, or Task Runner based on action.
+ */
+export async function processIncomingPacket(packet: IntentPacket): Promise<IntentPacket> {
+  const principles = await loadSoulContext();
+  let outboundPacket: IntentPacket;
+
+  console.log(`[BRAIN] Processing action: ${packet.action}`);
+
+  switch (packet.action) {
+    case 'propose': {
+      // Logic for Negotiator switchboard
+      const details = packet.payload.details;
+      const strategy = (details as any)?.strategy || 'compromise';
+      
+      // Attempt to extract the last offer from the message or payload
+      const amountMatch = packet.payload.message.match(/\$(\d+)/);
+      const incomingOffer = amountMatch ? parseInt(amountMatch[1], 10) : 300;
+      
+      // Default Negotiator Params (Seller Role)
+      const SELLER_LIMIT = 250;
+      const CONCESSION_STEP = 10;
+      
+      outboundPacket = evaluateProposal(
+        strategy as any, 
+        'seller', 
+        SELLER_LIMIT, 
+        incomingOffer, 
+        CONCESSION_STEP
+      );
+      break;
+    }
+
+    case 'read':
+    case 'write': {
+      outboundPacket = await handleChat(packet, principles);
+      break;
+    }
+
+    case 'call': {
+      outboundPacket = await executeTask(packet);
+      break;
+    }
+
+    default: {
+      console.warn(`[BRAIN] Unhandled action: ${packet.action}`);
+      outboundPacket = {
+        from: 'vadjanix://brain',
+        to: packet.reply_to || packet.from,
+        action: 'refuse',
+        payload: { message: "Action not recognized or unsupported by Brain switchboard." },
+        reasoning: `Unhandled action: ${packet.action}`
+      };
+    }
+  }
+
+  // Ensure routing is correct (Reply to sender)
+  outboundPacket.to = packet.reply_to || packet.from;
+
+  // Outbound HTTP fetch call to the Router
+  const ROUTER_URL = process.env.ROUTER_URL || 'http://localhost:3000/';
+  try {
+    console.log(`[BRAIN] Sending response to Router: ${outboundPacket.action}`);
+    await fetch(ROUTER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(outboundPacket)
+    });
+  } catch (error: any) {
+    console.error(`[BRAIN] Failed to reach Router: ${error.message}`);
+  }
+
+  return outboundPacket;
 }

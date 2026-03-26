@@ -8,7 +8,9 @@ export const IntentPacketSchema = z.object({
     message: z.string(),
     details: z.object({
       strategy: z.enum(['compromise', 'hold_firm', 'walk_away']).optional(),
-      rate: z.number().optional()
+      rate: z.number().optional(),
+      task_name: z.string().optional(),
+      parameters: z.any().optional()
     }).strict().optional()
   }),
   auth: z.string().optional(),
@@ -28,6 +30,16 @@ export const IntentPacketSchema = z.object({
         code: z.ZodIssueCode.custom,
         message: "Propose action MUST NOT contain a raw rate number in details. Use a strategy instead.",
         path: ["payload", "details", "rate"]
+      });
+    }
+  }
+
+  if (data.action === 'call') {
+    if (!data.payload.details?.task_name) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Call action MUST have a task_name in details",
+        path: ["payload", "details", "task_name"]
       });
     }
   }
