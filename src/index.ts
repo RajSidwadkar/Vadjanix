@@ -2,6 +2,7 @@ import express from 'express';
 import 'dotenv/config';
 import { parseTelegramUpdate, sendTelegramMessage } from './router/telegram.js';
 import { processIncomingPacket } from './brain/engine.js';
+import { initializeDiscordBot } from './adapters/discord.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -45,4 +46,7 @@ app.post('/webhook/telegram', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`[VADJANIX] Router online at http://localhost:${PORT}`);
+  
+  // Initialize Discord Bot
+  initializeDiscordBot();
 });

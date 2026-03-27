@@ -101,7 +101,7 @@ export function nostrListen(onPacketReceived: (packet: any) => void) {
       oneose() {
         console.log("[NOSTR] Relay subscription reached End of Stored Events (EOSE).");
       },
-      onclosed(reasons) {
+      onclosed(reasons: string[]) {
         console.warn("[NOSTR] Subscription closed:", reasons);
       }
     }
