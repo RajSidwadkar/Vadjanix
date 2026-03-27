@@ -3,6 +3,7 @@ import { verifyPacketSignature } from '../voice/crypto.js';
 import { nostrSend } from '../voice/nostr.js';
 import { loopbackSend } from './loopback.js';
 import { routeToGoogleA2A, routeToOpenAIAgent } from './adapters.js';
+import { sendTelegramMessage } from './telegram.js';
 import { ZodError } from 'zod';
 
 const AUTHORIZED_PUBKEY = process.env.VADJANIX_PUBKEY || "dummy_hex_key";
@@ -53,6 +54,19 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
           return { success: true, status: 200, data: { message: "Packet broadcasted to Nostr network" } };
         } else {
           return { success: false, status: 502, error: "Failed to broadcast to Nostr relays" };
+        }
+      case 'telegram:':
+        console.log("ROUTER: Telegram protocol message.");
+        const chatId = url.hostname;
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
+        if (!botToken) {
+          return { success: false, status: 500, error: "Telegram Bot Token not configured" };
+        }
+        try {
+          await sendTelegramMessage(chatId, validPacket.payload.message, botToken);
+          return { success: true, status: 200, data: { message: "Telegram message sent" } };
+        } catch (error: any) {
+          return { success: false, status: 502, error: `Telegram API error: ${error.message}` };
         }
       case 'db:':
         console.log("ROUTER: Database execution message.");
