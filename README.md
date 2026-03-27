@@ -80,8 +80,7 @@ Vadjanix is a **local-first, zero-trust multi-agent orchestrator** that connects
 
 ## 🎥 See It in Action
 
-> **Demo GIF coming** — 60 seconds: a Telegram message triggers a local swarm that checks server RAM, negotiates a freelance contract, fans out to three parallel sub-agents, and writes the result to a local audit log. Zero cloud. Zero latency tax. Zero trust required.
-
+[![Vadjanix Demo](https://img.youtube.com/vi/ejNHozFaZOQ/maxresdefault.jpg)](https://youtu.be/ejNHozFaZOQ) 
 ---
 
 ## 🧠 Core Architecture
