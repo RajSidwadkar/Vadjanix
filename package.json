@@ -13,7 +13,7 @@
     "test:reputation": "tsx tests/test_reputation.ts",
     "test:audit": "tsx tests/test_audit.ts",
     "test:adapters": "tsx tests/test_adapters.ts",
-    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_zero_trust.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts && tsx tests/test_task_runner.ts && tsx tests/test_reputation.ts && tsx tests/test_audit.ts && tsx tests/test_adapters.ts",
+    "test:all": "tsx tests/validate_system.ts && tsx tests/validate_zero_trust.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts && tsx tests/test_task_runner.ts && tsx tests/test_reputation.ts && tsx tests/test_audit.ts && tsx tests/test_adapters.ts && tsx tests/test_swarm.ts",
     "prepare": "husky"
   },
   "dependencies": {

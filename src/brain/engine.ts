@@ -9,6 +9,14 @@ import { handleChat } from './chat.js';
 import { executeTask } from './task_runner.js';
 import { evaluateProposal } from './negotiator.js';
 import { logDecision } from '../memory/audit.js';
+import { withTimeout, aggregateResults, AggregationStrategy } from './aggregator.js';
+import { logSwarmRun } from '../memory/swarm_logger.js';
+
+export type SwarmTask = { 
+  goal: string; 
+  subtasks: IntentPacket[]; 
+  aggregator_strategy: AggregationStrategy; 
+};
 
 /**
  * Loads the core principles/constitution from the soul directory.
@@ -234,7 +242,7 @@ export async function processIncomingPacket(packet: IntentPacket): Promise<Inten
       const SELLER_LIMIT = 250;
       const CONCESSION_STEP = 10;
       
-      outboundPacket = evaluateProposal(
+      outboundPacket = await evaluateProposal(
         strategy as any, 
         'seller', 
         SELLER_LIMIT, 
@@ -303,4 +311,67 @@ export async function processIncomingPacket(packet: IntentPacket): Promise<Inten
   }
 
   return outboundPacket;
+}
+
+/**
+ * Parallel Fan-Out execution for SwarmTasks.
+ * Dispatches multiple subtasks to the Router simultaneously with a timeout.
+ */
+export async function executeSwarmTask(swarm: SwarmTask): Promise<IntentPacket> {
+  const ROUTER_URL = process.env.ROUTER_URL || 'http://localhost:3000/';
+  const startTime = Date.now();
+  const agentsTotal = swarm.subtasks.map(s => s.to);
+
+  const results = await Promise.all(
+    swarm.subtasks.map(async (packet) => {
+      const dispatchPromise = (async () => {
+        try {
+          const response = await fetch(ROUTER_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(packet)
+          });
+          return await response.json() as IntentPacket;
+        } catch (error: any) {
+          console.error(`[BRAIN] Swarm dispatch failed for subtask: ${error.message}`);
+          return {
+            from: 'vadjanix://brain',
+            to: packet.to,
+            action: 'refuse',
+            payload: { message: `Subtask dispatch failed: ${error.message}` },
+            reasoning: 'Network Error during Swarm Fan-Out'
+          } as IntentPacket;
+        }
+      })();
+
+      return withTimeout(dispatchPromise, 10000);
+    })
+  );
+
+  const finalPacket = await aggregateResults(results, swarm.aggregator_strategy);
+  const latencyMs = Date.now() - startTime;
+
+  const agentsSuccess: string[] = [];
+  const agentsTimeout: string[] = [];
+
+  results.forEach((res, index) => {
+    const agentAddr = swarm.subtasks[index].to;
+    if (res === null) {
+      agentsTimeout.push(agentAddr);
+    } else {
+      agentsSuccess.push(agentAddr);
+    }
+  });
+
+  await logSwarmRun(
+    swarm.goal,
+    swarm.aggregator_strategy,
+    agentsTotal,
+    agentsSuccess,
+    agentsTimeout,
+    finalPacket.payload.message,
+    latencyMs
+  );
+
+  return finalPacket;
 }

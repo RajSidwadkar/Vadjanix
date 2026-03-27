@@ -68,7 +68,9 @@ async function handlePacket(packet: IntentPacket) {
   // Response generation
   console.log(`... ${recipient.name} is thinking (Turn ${turnCounter}/${MAX_TURNS}) ...`);
   try {
-    const timestampedMessage = `[SYSTEM: This is Turn ${turnCounter} of ${MAX_TURNS}.] Message: ${packet.payload.message}`;
+    if (!packet.payload) (packet as any).payload = {};
+    if (!packet.payload.message) (packet as any).payload.message = "";
+    const timestampedMessage = "[SYSTEM: This is Turn " + turnCounter + " of 10. Do not walk away before Turn 8.] Message: " + packet.payload.message;
     
     let responsePacket: IntentPacket;
     try {
@@ -79,7 +81,7 @@ async function handlePacket(packet: IntentPacket) {
       const role = recipient.id === Agent_A.id ? 'buyer' : 'seller';
       const limit = role === 'buyer' ? BUYER_LIMIT : SELLER_LIMIT;
       const myLastOffer = role === 'buyer' ? buyerLastOffer : sellerLastOffer;
-      responsePacket = evaluateProposal('compromise', role, limit, myLastOffer, CONCESSION_STEP);
+      responsePacket = await evaluateProposal('compromise', role, limit, myLastOffer, CONCESSION_STEP);
     }
     
     // Wire the State into the Simulator
@@ -89,7 +91,7 @@ async function handlePacket(packet: IntentPacket) {
       const limit = role === 'buyer' ? BUYER_LIMIT : SELLER_LIMIT;
       const myLastOffer = role === 'buyer' ? buyerLastOffer : sellerLastOffer;
       
-      const refinedPacket = evaluateProposal(strategy, role, limit, myLastOffer, CONCESSION_STEP);
+      const refinedPacket = await evaluateProposal(strategy, role, limit, myLastOffer, CONCESSION_STEP);
       
       // Update state variables
       const rateMatch = refinedPacket.payload.message.match(/\$(\d+)/);
@@ -121,15 +123,15 @@ simulationBus.on('packet', handlePacket);
 console.log("🚀 STARTING SIMULATION ARENA...");
 console.log("--------------------------------");
 
-const initialOffer: IntentPacket = {
-  from: Agent_B.id,
-  to: Agent_A.id,
-  action: 'propose',
+const initialOffer: IntentPacket = { 
+  action: 'propose', 
+  from: 'vadjanix://seller', 
+  to: 'vadjanix://buyer', 
   payload: { 
-    message: `I am offering my services for $${sellerLastOffer}. Are you interested?`,
-    details: { strategy: 'hold_firm' }
+    message: "I am offering my services for $200. Are you interested?", 
+    details: { strategy: "compromise" } 
   },
-  reasoning: "Starting the negotiation at the initial offer price."
+  reasoning: "Initial kickoff packet for simulation."
 };
 
 // Start the domino effect
