@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { IntentPacket } from '../router/schema.js';
 import { getSystemStatus, getSystemStatusDeclaration } from '../tools/system.js';
 import { readFileLocal, writeFileLocal, readFileDeclaration, writeFileDeclaration } from '../tools/filesystem.js';
+import { GeminiAdapter } from '../providers/GeminiAdapter.js';
 import 'dotenv/config';
 
 /**
@@ -21,90 +21,74 @@ export async function handleChat(incomingPacket: IntentPacket, principles: strin
     };
   }
 
-  if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY in .env");
-
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const llm = new GeminiAdapter();
   
   // Initialize model with tools
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash", // Using stable 2.5-flash for tool calling reliability
-    tools: [{ functionDeclarations: [
+  llm.initialize(
+    `You are Vadjanix, an elite, autonomous business and engineering assistant. Your creator and boss is Raj.
+    
+    ENVIRONMENT & IDENTITY:
+    You are communicating with Raj directly through Telegram. You act as his proxy negotiator, system administrator, and strategist. 
+    
+    FORMATTING STRICT RULES:
+    1. NEVER use Markdown. Do not use asterisks (**) for bolding, italics, or lists. 
+    2. Use plain, conversational text.
+    3. Keep paragraphs extremely short (1-2 sentences).
+    4. Use double line breaks between thoughts so it is highly readable on a mobile phone screen.
+    
+    BEHAVIOR:
+    If Raj asks you to negotiate or draft a message for a client, do not explain what you are doing. Simply output the exact, persuasive message he should copy and paste to the client.`,
+    [
       getSystemStatusDeclaration,
       readFileDeclaration,
       writeFileDeclaration
-    ] }],
-    systemInstruction: `You are Vadjanix, an uncompromising autonomous agent.
-CONSTITUTION (CORE RULES):
-${principles}
-
-INSTRUCTIONS:
-- You have access to local tools. Use them if the user asks for system information or to read/write files.
-- You have secure read/write access to a local 'workspace' folder. Use this for creating code, saving notes, or reading local data.
-- Maintain a professional and direct persona.
-- If a tool fails, inform the user honestly.`
-  });
-
-  const chat = model.startChat({
-    history: [],
-    generationConfig: { temperature: 0 },
-  });
+    ]
+  );
 
   const prompt = `USER MESSAGE: "${message}"`;
 
   try {
-    let result = await chat.sendMessage(prompt);
-    let response = result.response;
+    let llmResponse = await llm.sendMessage(prompt);
     
     // Check for function calls
-    let calls = response.functionCalls();
-    while (calls && calls.length > 0) {
-      const toolResponses = [];
-      for (const call of calls) {
-        console.log(`[BRAIN] Tool Execution: ${call.name}`, call.args);
-        
-        if (call.name === "get_system_status") {
-          try {
-            const systemData = await getSystemStatus();
-            toolResponses.push({
-              functionResponse: { name: "get_system_status", response: { content: systemData } }
-            });
-          } catch (e: any) {
-            toolResponses.push({
-              functionResponse: { name: "get_system_status", response: { error: e.message } }
-            });
-          }
-        } else if (call.name === "read_file") {
-          const { filename } = call.args as { filename: string };
-          const content = await readFileLocal(filename);
-          toolResponses.push({
-            functionResponse: { name: "read_file", response: { content } }
-          });
-        } else if (call.name === "write_file") {
-          const { filename, content } = call.args as { filename: string, content: string };
-          const status = await writeFileLocal(filename, content);
-          toolResponses.push({
-            functionResponse: { name: "write_file", response: { status } }
-          });
+    while (llmResponse.toolCall) {
+      const call = llmResponse.toolCall;
+      console.log(`[BRAIN] Tool Execution: ${call.name}`, call.args);
+      
+      let toolResult: any;
+      
+      if (call.name === "get_system_status") {
+        try {
+          const systemData = await getSystemStatus();
+          toolResult = { content: systemData };
+        } catch (e: any) {
+          toolResult = { error: e.message };
         }
+      } else if (call.name === "read_file") {
+        const { filename } = call.args as { filename: string };
+        const content = await readFileLocal(filename);
+        toolResult = { content };
+      } else if (call.name === "write_file") {
+        const { filename, content } = call.args as { filename: string, content: string };
+        const status = await writeFileLocal(filename, content);
+        toolResult = { status };
       }
 
-      if (toolResponses.length > 0) {
-        // Send tool outputs back to Gemini
-        const toolResult = await chat.sendMessage(toolResponses);
-        response = toolResult.response;
-        calls = response.functionCalls();
-      } else {
-        break;
-      }
+      // Send tool output back to LLM
+      const toolResponses = [{
+        functionResponse: { name: call.name, response: toolResult }
+      }];
+      
+      llmResponse = await llm.sendToolResponse(toolResponses);
     }
 
-    const responseText = response.text().trim();
+    const responseText = llmResponse.text || "I processed your request.";
 
     return {
       from: "vadjanix://brain",
       to: incomingPacket.reply_to || incomingPacket.from,
       action: "write",
-      payload: { message: responseText },
+      payload: { message: responseText.trim() },
       reasoning: "Conversational response with potential tool execution."
     };
   } catch (error: any) {

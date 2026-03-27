@@ -1,7 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { z } from 'zod';
-import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import 'dotenv/config';
 
 import { IntentPacketSchema, IntentPacket } from '../router/schema.js';
@@ -11,6 +10,7 @@ import { evaluateProposal } from './negotiator.js';
 import { logDecision } from '../memory/audit.js';
 import { withTimeout, aggregateResults, AggregationStrategy } from './aggregator.js';
 import { logSwarmRun } from '../memory/swarm_logger.js';
+import { GeminiAdapter } from '../providers/GeminiAdapter.js';
 
 export type SwarmTask = { 
   goal: string; 
@@ -124,32 +124,28 @@ export async function generateIntent(userPrompt: string, soulOverride?: string) 
     }
   }
 
-  if (!process.env.GEMINI_API_KEY) throw new Error("Missing GEMINI_API_KEY in .env");
-
   let soulContext = soulOverride || await loadSoulContext();
-
   const recentMemory = await loadRecentMemory();
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-  // FIX: Cast the schema as 'any' to bypass TypeScript's overly strict SDK interface checks
+  // Define schema with literal strings instead of SchemaType enum
   const geminiSchema: any = {
-    type: SchemaType.OBJECT,
+    type: "object",
     properties: {
-      from: { type: SchemaType.STRING },
-      to: { type: SchemaType.STRING },
+      from: { type: "string" },
+      to: { type: "string" },
       action: { 
-        type: SchemaType.STRING, 
+        type: "string", 
         enum: ['read', 'write', 'propose', 'query', 'call', 'refuse'] 
       },
       payload: {
-        type: SchemaType.OBJECT,
+        type: "object",
         properties: { 
-          message: { type: SchemaType.STRING },
+          message: { type: "string" },
           details: {
-            type: SchemaType.OBJECT,
+            type: "object",
             properties: {
               strategy: { 
-                type: SchemaType.STRING, 
+                type: "string", 
                 enum: ['compromise', 'hold_firm', 'walk_away']
               }
             },
@@ -158,30 +154,20 @@ export async function generateIntent(userPrompt: string, soulOverride?: string) 
         },
         required: ["message"]
       },
-      reasoning: { type: SchemaType.STRING }
+      reasoning: { type: "string" }
     },
     required: ["from", "to", "action", "payload", "reasoning"]
   };
 
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash",
-    generationConfig: {
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: geminiSchema,
-    }
-  });
-
-  const prompt = `You are Vadjanix, an uncompromising autonomous agent.
+  const llm = new GeminiAdapter();
+  llm.initialize(
+    `You are Vadjanix, an uncompromising autonomous agent.
 
 CONSTITUTION (CORE RULES):
 ${soulContext}
 
 RECENT MEMORY (CONTEXT):
 ${recentMemory}
-
-USER REQUEST: 
-"${userPrompt}"
 
 SYSTEM INSTRUCTIONS FOR JSON MAPPING:
 You must evaluate the USER REQUEST against your CONSTITUTION and map your decision to the exact JSON fields below:
@@ -200,11 +186,20 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
 
 4. STATIC ROUTING FIELDS:
    - The "from" field MUST always be exactly: "vadjanix://brain"
-   - The "to" field MUST always be exactly: "user"`;
+   - The "to" field MUST always be exactly: "user"`,
+    [], // No tools for this intent generation
+    {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: geminiSchema,
+    }
+  );
+
+  const prompt = `USER REQUEST: "${userPrompt}"`;
 
   try {
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const response = await llm.sendMessage(prompt);
+    const responseText = response.text || "{}";
     
     const parsed = JSON.parse(responseText);
     const validatedPacket = IntentPacketSchema.parse(parsed);
