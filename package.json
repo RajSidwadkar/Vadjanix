@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts",
+    "dev": "tsx watch src/index.ts",
     "test": "tsx tests/validate_system.ts",
     "test:memory": "tsx tests/validate_memory.ts",
     "test:router": "tsx tests/validate_router.ts",
@@ -13,18 +14,21 @@
     "test:reputation": "tsx tests/test_reputation.ts",
     "test:audit": "tsx tests/test_audit.ts",
     "test:adapters": "tsx tests/test_adapters.ts",
-    "test:all": "tsx tests/validate_system.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts && tsx tests/test_task_runner.ts && tsx tests/test_reputation.ts && tsx tests/test_audit.ts && tsx tests/test_adapters.ts && tsx tests/test_swarm.ts",
+    "test:telegram": "tsx tests/validate_telegram.ts",
+    "test:all": "tsx tests/validate_system.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts && tsx tests/test_task_runner.ts && tsx tests/test_reputation.ts && tsx tests/test_audit.ts && tsx tests/test_adapters.ts && tsx tests/test_swarm.ts && tsx tests/validate_telegram.ts",
     "prepare": "husky"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "dotenv": "^16.6.1",
+    "express": "^5.2.1",
     "nostr-tools": "^2.23.3",
     "openai": "^6.32.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/express": "^5.0.6",
     "@types/node": "^22.19.15",
     "husky": "^9.1.7",
     "tsx": "^4.21.0",

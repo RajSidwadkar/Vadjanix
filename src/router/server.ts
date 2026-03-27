@@ -48,33 +48,31 @@ const server = http.createServer(async (req, res) => {
 
       // Handle Telegram Webhook
       if (url === '/webhook/telegram') {
+        // 1. Instantly acknowledge receipt to Telegram
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+
+        // 2. Process the update asynchronously
         const intentPacket = parseTelegramUpdate(parsedJson);
         if (intentPacket) {
-          try {
-            // Forward to brain and await response
-            const responsePacket = await processIncomingPacket(intentPacket);
-            
-            // Extract chat_id (strip telegram://)
-            const chatId = responsePacket.to.replace('telegram://', '');
-            const botToken = process.env.TELEGRAM_BOT_TOKEN;
-            
-            if (botToken) {
-              await sendTelegramMessage(chatId, responsePacket.payload.message, botToken);
-            } else {
-              console.error('[TELEGRAM] Error: TELEGRAM_BOT_TOKEN not set');
+          (async () => {
+            try {
+              // Forward to brain and await response
+              const responsePacket = await processIncomingPacket(intentPacket);
+              
+              // Extract chat_id from the original intent (or response)
+              const chatId = intentPacket.from.replace('telegram://', '');
+              const botToken = process.env.TELEGRAM_BOT_TOKEN;
+              
+              if (botToken) {
+                await sendTelegramMessage(chatId, responsePacket.payload.message, botToken);
+              } else {
+                console.error('[TELEGRAM] Error: TELEGRAM_BOT_TOKEN not set');
+              }
+            } catch (error: any) {
+              console.error('[TELEGRAM] Async processing error:', error.message);
             }
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true }));
-          } catch (error: any) {
-            console.error('[TELEGRAM] Error processing update:', error.message);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Internal Server Error' }));
-          }
-        } else {
-          // Acknowledge non-text messages with 200 to stop Telegram from retrying
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ success: true, message: 'Ignored non-text update' }));
+          })();
         }
         return;
       }
