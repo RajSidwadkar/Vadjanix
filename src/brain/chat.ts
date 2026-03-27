@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { IntentPacket } from '../router/schema.js';
 import { getSystemStatus, getSystemStatusDeclaration } from '../tools/system.js';
+import { readFileLocal, writeFileLocal, readFileDeclaration, writeFileDeclaration } from '../tools/filesystem.js';
 import 'dotenv/config';
 
 /**
@@ -27,7 +28,20 @@ export async function handleChat(incomingPacket: IntentPacket, principles: strin
   // Initialize model with tools
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash", // Using stable 2.5-flash for tool calling reliability
-    tools: [{ functionDeclarations: [getSystemStatusDeclaration] }],
+    tools: [{ functionDeclarations: [
+      getSystemStatusDeclaration,
+      readFileDeclaration,
+      writeFileDeclaration
+    ] }],
+    systemInstruction: `You are Vadjanix, an uncompromising autonomous agent.
+CONSTITUTION (CORE RULES):
+${principles}
+
+INSTRUCTIONS:
+- You have access to local tools. Use them if the user asks for system information or to read/write files.
+- You have secure read/write access to a local 'workspace' folder. Use this for creating code, saving notes, or reading local data.
+- Maintain a professional and direct persona.
+- If a tool fails, inform the user honestly.`
   });
 
   const chat = model.startChat({
@@ -35,47 +49,52 @@ export async function handleChat(incomingPacket: IntentPacket, principles: strin
     generationConfig: { temperature: 0 },
   });
 
-  const prompt = `You are Vadjanix, an uncompromising autonomous agent.
-CONSTITUTION (CORE RULES):
-${principles}
-
-INSTRUCTIONS:
-- You have access to local tools. Use them if the user asks for system information.
-- Maintain a professional and direct persona.
-- If a tool fails, inform the user honestly.
-
-USER MESSAGE: "${message}"`;
+  const prompt = `USER MESSAGE: "${message}"`;
 
   try {
     let result = await chat.sendMessage(prompt);
     let response = result.response;
     
     // Check for function calls
-    const calls = response.functionCalls();
-    if (calls && calls.length > 0) {
-      const call = calls[0];
-      if (call.name === "get_system_status") {
-        console.log("[BRAIN] Tool Execution: get_system_status");
-        try {
-          const systemData = await getSystemStatus();
-          // Send tool output back to Gemini
-          const toolResult = await chat.sendMessage([{
-            functionResponse: {
-              name: "get_system_status",
-              response: { content: systemData }
-            }
-          }]);
-          response = toolResult.response;
-        } catch (toolError: any) {
-          console.error("[BRAIN] Tool Failure:", toolError.message);
-          const toolResult = await chat.sendMessage([{
-            functionResponse: {
-              name: "get_system_status",
-              response: { error: `Execution failed: ${toolError.message}` }
-            }
-          }]);
-          response = toolResult.response;
+    let calls = response.functionCalls();
+    while (calls && calls.length > 0) {
+      const toolResponses = [];
+      for (const call of calls) {
+        console.log(`[BRAIN] Tool Execution: ${call.name}`, call.args);
+        
+        if (call.name === "get_system_status") {
+          try {
+            const systemData = await getSystemStatus();
+            toolResponses.push({
+              functionResponse: { name: "get_system_status", response: { content: systemData } }
+            });
+          } catch (e: any) {
+            toolResponses.push({
+              functionResponse: { name: "get_system_status", response: { error: e.message } }
+            });
+          }
+        } else if (call.name === "read_file") {
+          const { filename } = call.args as { filename: string };
+          const content = await readFileLocal(filename);
+          toolResponses.push({
+            functionResponse: { name: "read_file", response: { content } }
+          });
+        } else if (call.name === "write_file") {
+          const { filename, content } = call.args as { filename: string, content: string };
+          const status = await writeFileLocal(filename, content);
+          toolResponses.push({
+            functionResponse: { name: "write_file", response: { status } }
+          });
         }
+      }
+
+      if (toolResponses.length > 0) {
+        // Send tool outputs back to Gemini
+        const toolResult = await chat.sendMessage(toolResponses);
+        response = toolResult.response;
+        calls = response.functionCalls();
+      } else {
+        break;
       }
     }
 
