@@ -92,36 +92,36 @@ Vadjanix is built on a five-layer unidirectional data flow. Every packet that en
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                    VADJANIX — LOCAL SOVEREIGN MACHINE                ║
 ║                                                                      ║
-║  ┌─────────────┐   ┌─────────────┐   ┌──────────────────────────┐  ║
-║  │    SOUL     │   │   MEMORY    │   │   Docker Security Sandbox │  ║
-║  │─────────────│   │─────────────│   │──────────────────────────│  ║
-║  │PRINCIPLES.md│   │ profile.md  │   │  ┌────────────────────┐  │  ║
-║  │BOUNDARIES.md│   │context_log  │   │  │     BRAIN          │  │  ║
-║  │             │   │  deals.md   │   │  │  engine.ts         │  │  ║
-║  │ Human edits │   │ audit_log   │   │  │  Pre-check gate    │  │  ║
-║  │ plain text  │   │ swarm_log   │   │  │  State machine     │  │  ║
-║  └──────┬──────┘   └──────┬──────┘   │  │  Zod validator     │  │  ║
-║         │                 │          │  │  LLM reasoning loop│  │  ║
-║         └────────┬─────────┘          │  └────────┬───────────┘  │  ║
-║                  │ soul + memory       │           │               │  ║
-║                  └─────────────────── ▶ ───────────┘               │  ║
-║                                       └──────────────────────────┘  ║
+║  ┌─────────────┐   ┌─────────────┐   ┌──────────────────────────┐    ║
+║  │    SOUL     │   │   MEMORY    │   │   Docker Security Sandbox│    ║
+║  │─────────────│   │─────────────│   │──────────────────────────│    ║
+║  │PRINCIPLES.md│   │ profile.md  │   │  ┌────────────────────┐  │    ║
+║  │BOUNDARIES.md│   │context_log  │   │  │     BRAIN          │  │    ║
+║  │             │   │  deals.md   │   │  │  engine.ts         │  │    ║
+║  │ Human edits │   │ audit_log   │   │  │  Pre-check gate    │  │    ║
+║  │ plain text  │   │ swarm_log   │   │  │  State machine     │  │    ║
+║  └──────┬──────┘   └──────┬──────┘   │  │  Zod validator     │  │    ║
+║         │                 │          │  │  LLM reasoning loop│  │    ║
+║         └────────┬─────────┘          │  └────────┬───────────┘ │    ║
+║                  │ soul + memory      │           │             │    ║
+║                  └─────────────────── ▶ ───────────┘            │   ║
+║                                       └──────────────────────────┘   ║
 ║                                                  │                   ║
-║                              ┌───────────────────▼──────────────┐   ║
-║                              │     INTENT PACKET ROUTER         │   ║
-║                              │  IntentPacket: from·to·action    │   ║
-║                              │  Nostr auth sign · Zod check     │   ║
-║                              │  URL prefix switcher (50 lines)  │   ║
-║                              └────┬──────┬──────┬───────┬───────┘   ║
+║                              ┌───────────────────▼──────────────┐    ║
+║                              │     INTENT PACKET ROUTER         │    ║
+║                              │  IntentPacket: from·to·action    │    ║
+║                              │  Nostr auth sign · Zod check     │    ║
+║                              │  URL prefix switcher (50 lines)  │    ║
+║                              └────┬──────┬──────┬───────┬───────┘    ║
 ║                                   │      │      │       │            ║
-║             vadjanix:// ──────────┘  db://  file://  https://       ║
-║             google-a2a://                        mcp://             ║
+║             vadjanix:// ──────────┘  db://  file://  https://        ║
+║             google-a2a://                        mcp://              ║
 ║                                                                      ║
-║                              ┌───────────────────────────────────┐  ║
-║                              │     VOICE — NOSTR TRANSPORT       │  ║
-║                              │  Keypair · Agent Card · Relay     │  ║
-║                              │  Reputation score · Discovery     │  ║
-║                              └───────────────────────────────────┘  ║
+║                              ┌───────────────────────────────────┐   ║
+║                              │     VOICE — NOSTR TRANSPORT       │   ║
+║                              │  Keypair · Agent Card · Relay     │   ║
+║                              │  Reputation score · Discovery     │   ║
+║                              └───────────────────────────────────┘   ║
 ╚══════════════════════════════════════════════════════════════════════╝
                                         │
                         ┌───────────────▼────────────────┐
@@ -171,7 +171,7 @@ Two Vadjanix agents — one representing you, one representing a counterparty �
 ## ⚡ 5-Line Quickstart
 
 ```bash
-git clone https://github.com/RajKumarSidwadkar/Vadjanix.git
+git clone https://github.com/RajSidwadkar/Vadjanix.git
 cd Vadjanix
 npm install
 cp .env.example .env    # Add your Gemini API & Telegram keys
@@ -335,7 +335,7 @@ Vadjanix is open source and built in public. Contributions are welcome — espec
 
 ```bash
 # Getting started
-git fork https://github.com/RajKumarSidwadkar/Vadjanix
+git fork https://github.com/RajSidwadkar/Vadjanix
 git checkout -b feature/your-feature-name
 git commit -m "feat: describe your change clearly"
 git push origin feature/your-feature-name
@@ -349,7 +349,7 @@ Please read `CONTRIBUTING.md` before submitting. All PRs go through the Zero-Tru
 ## 📄 License
 
 Distributed under the **MIT License** — use it, fork it, build on it, sell it.
-See [`LICENSE`](https://github.com/RajKumarSidwadkar/Vadjanix/blob/main/LICENSE) for details.
+See [`LICENSE`](https://github.com/RajSidwadkar/Vadjanix/blob/main/LICENSE) for details.
 
 ---
 
@@ -371,13 +371,13 @@ Not a black box. A trusted diplomat.
 
 <br/>
 
-**Built with intention by [Raj Kumar Sidwadkar](https://github.com/RajKumarSidwadkar)**
+**Built with intention by [Raj Kumar Sidwadkar](https://github.com/RajSidwadkar)**
 
 *Vadjanix doesn't install adapters. It routes intentions.*
 
 <br/>
 
-[![Star on GitHub](https://img.shields.io/github/stars/RajKumarSidwadkar/Vadjanix?style=for-the-badge&logo=github&label=Star%20on%20GitHub)](https://github.com/RajKumarSidwadkar/Vadjanix)
+[![Star on GitHub](https://img.shields.io/github/stars/RajSidwadkar/Vadjanix?style=for-the-badge&logo=github&label=Star%20on%20GitHub)](https://github.com/RajSidwadkar/Vadjanix)
 
 <br/>
 
