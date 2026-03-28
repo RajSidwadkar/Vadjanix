@@ -1,6 +1,7 @@
 import { Client, GatewayIntentBits, Events, ChannelType, Message } from 'discord.js';
 import 'dotenv/config';
 import { processIncomingPacket } from '../brain/engine.js';
+import { initializeSwarm, processWithSwarm } from '../brain/SwarmManager.js';
 import { IntentPacket } from '../router/schema.js';
 
 /**
@@ -43,30 +44,23 @@ export async function initializeDiscordBot() {
       console.warn('[DISCORD] Failed to send typing indicator:', e);
     }
 
-    // 4. ROUTING: Clean content and send to Brain
+    // 4. ROUTING: Clean content and send to Swarm
     const botId = client.user?.id || '';
     const mentionRegex = new RegExp(`<@!?${botId}>`, 'g');
     const cleanContent = message.content.replace(mentionRegex, '').trim();
 
-    // Map Discord message to IntentPacket
-    const packet: IntentPacket = {
-      from: `discord://${message.author.id}`,
-      to: 'vadjanix://brain',
-      action: 'write',
-      payload: { message: cleanContent || "Hello" },
-      reasoning: "Discord message received"
-    };
+    const sessionId = `discord-${message.author.id}`;
 
     try {
-      // Process through the Brain
-      const responsePacket = await processIncomingPacket(packet);
+      // Process through the Swarm
+      const llmResponse = await processWithSwarm(cleanContent || "Hello", sessionId);
 
       // 5. RESPONSE: Reply to user
-      if (responsePacket.payload.message) {
-        await message.reply(responsePacket.payload.message);
+      if (llmResponse.text) {
+        await message.reply(llmResponse.text);
       }
     } catch (error: any) {
-      console.error('[DISCORD] Brain processing failed:', error.message);
+      console.error('[DISCORD] Swarm processing failed:', error.message);
       await message.reply("⚠️ Sorry, my Brain is having some trouble processing that right now.");
     }
   });

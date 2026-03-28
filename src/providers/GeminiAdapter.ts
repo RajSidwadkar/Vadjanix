@@ -3,8 +3,9 @@ import { ILLMProvider, LLMResponse, ToolCallRequest } from './ILLMProvider.js';
 import 'dotenv/config';
 
 export class GeminiAdapter implements ILLMProvider {
-  private chatSession: ChatSession | null = null;
+  private sessions: Map<string, ChatSession> = new Map();
   private model: GenerativeModel | null = null;
+  private config: any = null;
 
   initialize(systemInstruction: string, tools: any[], config?: any): void {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -15,33 +16,50 @@ export class GeminiAdapter implements ILLMProvider {
     const genAI = new GoogleGenerativeAI(apiKey);
     
     const modelConfig: any = {
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-flash-lite",
       systemInstruction,
+      tools: []
     };
 
     if (tools && tools.length > 0) {
-      modelConfig.tools = [{ functionDeclarations: tools }];
+      modelConfig.tools.push({ functionDeclarations: tools });
     }
+
+    // Enable live web grounding
+    modelConfig.tools.push({ googleSearch: {} });
 
     if (config) {
       modelConfig.generationConfig = config;
+      this.config = config;
+    } else {
+      this.config = { temperature: 0 };
     }
 
     this.model = genAI.getGenerativeModel(modelConfig);
-
-    this.chatSession = this.model.startChat({
-      history: [],
-      generationConfig: config || { temperature: 0 },
-    });
   }
 
-  async sendMessage(prompt: string): Promise<LLMResponse> {
-    if (!this.chatSession) {
+  private getOrCreateSession(sessionId: string): ChatSession {
+    if (!this.model) {
       throw new Error("GeminiAdapter not initialized. Call initialize() first.");
     }
 
+    if (!this.sessions.has(sessionId)) {
+      console.log(`[MEMORY] Spinning up new session for: ${sessionId}`);
+      const session = this.model.startChat({
+        history: [],
+        generationConfig: this.config,
+      });
+      this.sessions.set(sessionId, session);
+    }
+
+    return this.sessions.get(sessionId)!;
+  }
+
+  async sendMessage(prompt: string, sessionId: string): Promise<LLMResponse> {
+    const session = this.getOrCreateSession(sessionId);
+
     try {
-      const result = await this.chatSession.sendMessage(prompt);
+      const result = await session.sendMessage(prompt);
       return this.mapResponse(result.response);
     } catch (error: any) {
       console.error("GeminiAdapter sendMessage error:", error);
@@ -49,13 +67,11 @@ export class GeminiAdapter implements ILLMProvider {
     }
   }
 
-  async sendToolResponse(functionResponse: any): Promise<LLMResponse> {
-    if (!this.chatSession) {
-      throw new Error("GeminiAdapter not initialized. Call initialize() first.");
-    }
+  async sendToolResponse(functionResponse: any, sessionId: string): Promise<LLMResponse> {
+    const session = this.getOrCreateSession(sessionId);
 
     try {
-      const result = await this.chatSession.sendMessage(functionResponse);
+      const result = await session.sendMessage(functionResponse);
       return this.mapResponse(result.response);
     } catch (error: any) {
       console.error("GeminiAdapter sendToolResponse error:", error);

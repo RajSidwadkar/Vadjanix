@@ -4,11 +4,15 @@ import { readFileLocal, writeFileLocal, readFileDeclaration, writeFileDeclaratio
 import { GeminiAdapter } from '../providers/GeminiAdapter.js';
 import 'dotenv/config';
 
+// Persistent LLM instance for Chat
+const chatLlm = new GeminiAdapter();
+let isChatInitialized = false;
+
 /**
  * Handles conversational packets with action: 'write'.
  * Responds conversationally as the Vadjanix agent based on principles.
  */
-export async function handleChat(incomingPacket: IntentPacket, principles: string): Promise<IntentPacket> {
+export async function handleChat(incomingPacket: IntentPacket, principles: string, sessionId?: string): Promise<IntentPacket> {
   const message = incomingPacket.payload.message;
 
   if (!message || message.trim() === "") {
@@ -21,34 +25,40 @@ export async function handleChat(incomingPacket: IntentPacket, principles: strin
     };
   }
 
-  const llm = new GeminiAdapter();
-  
-  // Initialize model with tools
-  llm.initialize(
-    `You are Vadjanix, an elite, autonomous business and engineering assistant. Your creator and boss is Raj.
-    
-    ENVIRONMENT & IDENTITY:
-    You are communicating with Raj directly through Telegram. You act as his proxy negotiator, system administrator, and strategist. 
-    
-    FORMATTING STRICT RULES:
-    1. NEVER use Markdown. Do not use asterisks (**) for bolding, italics, or lists. 
-    2. Use plain, conversational text.
-    3. Keep paragraphs extremely short (1-2 sentences).
-    4. Use double line breaks between thoughts so it is highly readable on a mobile phone screen.
-    
-    BEHAVIOR:
-    If Raj asks you to negotiate or draft a message for a client, do not explain what you are doing. Simply output the exact, persuasive message he should copy and paste to the client.`,
-    [
-      getSystemStatusDeclaration,
-      readFileDeclaration,
-      writeFileDeclaration
-    ]
-  );
+  // Derive sessionId from incomingPacket.from if not provided
+  // e.g. "telegram://123456" -> "telegram-123456"
+  const finalSessionId = sessionId || incomingPacket.from.replace('://', '-');
+
+  // Initialize model with tools only once
+  if (!isChatInitialized) {
+    console.log("[BRAIN] Initializing persistent Chat LLM...");
+    chatLlm.initialize(
+      `You are Vadjanix, an elite, autonomous business and engineering assistant. Your creator and boss is Raj.
+      
+      ENVIRONMENT & IDENTITY:
+      You are communicating with Raj directly through Telegram. You act as his proxy negotiator, system administrator, and strategist. 
+      
+      FORMATTING STRICT RULES:
+      1. NEVER use Markdown. Do not use asterisks (**) for bolding, italics, or lists. 
+      2. Use plain, conversational text.
+      3. Keep paragraphs extremely short (1-2 sentences).
+      4. Use double line breaks between thoughts so it is highly readable on a mobile phone screen.
+      
+      BEHAVIOR:
+      If Raj asks you to negotiate or draft a message for a client, do not explain what you are doing. Simply output the exact, persuasive message he should copy and paste to the client.`,
+      [
+        getSystemStatusDeclaration,
+        readFileDeclaration,
+        writeFileDeclaration
+      ]
+    );
+    isChatInitialized = true;
+  }
 
   const prompt = `USER MESSAGE: "${message}"`;
 
   try {
-    let llmResponse = await llm.sendMessage(prompt);
+    let llmResponse = await chatLlm.sendMessage(prompt, finalSessionId);
     
     // Check for function calls
     while (llmResponse.toolCall) {
@@ -79,7 +89,7 @@ export async function handleChat(incomingPacket: IntentPacket, principles: strin
         functionResponse: { name: call.name, response: toolResult }
       }];
       
-      llmResponse = await llm.sendToolResponse(toolResponses);
+      llmResponse = await chatLlm.sendToolResponse(toolResponses, finalSessionId);
     }
 
     const responseText = llmResponse.text || "I processed your request.";

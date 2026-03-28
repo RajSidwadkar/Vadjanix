@@ -112,8 +112,12 @@ export async function logInteraction(userPrompt: string, packet: z.infer<typeof 
 }
 
 
+// Persistent LLM instance for Intent Generation
+const engineLlm = new GeminiAdapter();
+let isEngineInitialized = false;
+
 // 4. Gemini Engine with TypeScript Override
-export async function generateIntent(userPrompt: string, soulOverride?: string) {
+export async function generateIntent(userPrompt: string, soulOverride?: string, sessionId: string = "default-intent-session") {
   // Intercept with deterministic guardrails (Skip if in simulation mode to allow custom logic)
   if (process.env.SIMULATION_MODE !== 'true') {
     const guardrailTrip = runDeterministicPreCheck(userPrompt);
@@ -159,9 +163,11 @@ export async function generateIntent(userPrompt: string, soulOverride?: string) 
     required: ["from", "to", "action", "payload", "reasoning"]
   };
 
-  const llm = new GeminiAdapter();
-  llm.initialize(
-    `You are Vadjanix, an uncompromising autonomous agent.
+  // Initialize model only once
+  if (!isEngineInitialized) {
+    console.log("[BRAIN] Initializing persistent Engine LLM...");
+    engineLlm.initialize(
+      `You are Vadjanix, an uncompromising autonomous agent.
 
 CONSTITUTION (CORE RULES):
 ${soulContext}
@@ -187,18 +193,20 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
 4. STATIC ROUTING FIELDS:
    - The "from" field MUST always be exactly: "vadjanix://brain"
    - The "to" field MUST always be exactly: "user"`,
-    [], // No tools for this intent generation
-    {
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: geminiSchema,
-    }
-  );
+      [], // No tools for this intent generation
+      {
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: geminiSchema,
+      }
+    );
+    isEngineInitialized = true;
+  }
 
   const prompt = `USER REQUEST: "${userPrompt}"`;
 
   try {
-    const response = await llm.sendMessage(prompt);
+    const response = await engineLlm.sendMessage(prompt, sessionId);
     const responseText = response.text || "{}";
     
     const parsed = JSON.parse(responseText);
@@ -217,7 +225,7 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
  * Switchboard for incoming packets. 
  * Routes to Negotiator, Chat, or Task Runner based on action.
  */
-export async function processIncomingPacket(packet: IntentPacket): Promise<IntentPacket> {
+export async function processIncomingPacket(packet: IntentPacket, sessionId?: string): Promise<IntentPacket> {
   const principles = await loadSoulContext();
   let outboundPacket: IntentPacket;
 
@@ -249,7 +257,7 @@ export async function processIncomingPacket(packet: IntentPacket): Promise<Inten
 
     case 'read':
     case 'write': {
-      outboundPacket = await handleChat(packet, principles);
+      outboundPacket = await handleChat(packet, principles, sessionId);
       await logDecision(
         packet.action,
         `Message: "${packet.payload.message.substring(0, 30)}..."`,

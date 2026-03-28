@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { IntentPacketSchema } from './schema.js';
 import { logSecurityEvent } from './audit.js';
 import { routePacket } from './index.js';
-import { parseTelegramUpdate, sendTelegramMessage } from './telegram.js';
+import { parseTelegramUpdate, sendTelegramMessage } from '../adapters/telegram.js';
 import { processIncomingPacket } from '../brain/engine.js';
 
 const PORT = process.env.PORT || 3000;
@@ -55,13 +55,14 @@ const server = http.createServer(async (req, res) => {
         // 2. Process the update asynchronously
         const intentPacket = parseTelegramUpdate(parsedJson);
         if (intentPacket) {
+          const chatId = intentPacket.from.replace('telegram://', '');
+          const sessionId = `telegram-${chatId}`;
           (async () => {
             try {
               // Forward to brain and await response
-              const responsePacket = await processIncomingPacket(intentPacket);
+              const responsePacket = await processIncomingPacket(intentPacket, sessionId);
               
               // Extract chat_id from the original intent (or response)
-              const chatId = intentPacket.from.replace('telegram://', '');
               const botToken = process.env.TELEGRAM_BOT_TOKEN;
               
               if (botToken) {

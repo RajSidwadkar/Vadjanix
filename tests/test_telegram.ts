@@ -1,4 +1,4 @@
-import { parseTelegramUpdate, sendTelegramMessage } from '../src/router/telegram.js';
+import { parseTelegramUpdate, sendTelegramMessage } from '../src/adapters/telegram.js';
 import { IntentPacket } from '../src/router/schema.js';
 
 // Mock process.env

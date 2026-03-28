@@ -1,52 +1,42 @@
 import express from 'express';
 import 'dotenv/config';
-import { parseTelegramUpdate, sendTelegramMessage } from './router/telegram.js';
-import { processIncomingPacket } from './brain/engine.js';
+import { initializeTelegramWebhook } from './adapters/telegram.js';
 import { initializeDiscordBot } from './adapters/discord.js';
+import { initializeWhatsApp } from './adapters/whatsapp.js';
+import { initializeSwarm } from './brain/SwarmManager.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// CRITICAL: Middleware to read JSON payloads
+// 1. Middleware for JSON payloads
 app.use(express.json());
 
+// 2. Health check route
 app.get('/', (req, res) => {
   res.send('Vadjanix Node is Online');
 });
 
-app.post('/webhook/telegram', async (req, res) => {
-  // Immediately return 200 to prevent Telegram from timing out
-  res.sendStatus(200);
+async function boot() {
+  console.log("[VADJANIX] Starting boot sequence...");
 
-  const packet = parseTelegramUpdate(req.body);
-  if (packet) {
-    const chatId = packet.from.replace('telegram://', '');
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  // 0. Initialize the Multi-Agent Swarm (Trains the local NLP orchestrator)
+  await initializeSwarm();
 
-    if (botToken) {
-      // Process the Brain logic asynchronously
-      (async () => {
-        try {
-          const responsePacket = await processIncomingPacket(packet);
-          await sendTelegramMessage(chatId, responsePacket.payload.message, botToken);
-        } catch (error: any) {
-          console.error('[BRAIN] Processing error:', error.message);
-          try {
-            await sendTelegramMessage(chatId, "System Error: Brain processing failed.", botToken);
-          } catch (sendError: any) {
-            console.error('[TELEGRAM] Failed to send fallback error message:', sendError.message);
-          }
-        }
-      })();
-    } else {
-      console.error('[TELEGRAM] Error: TELEGRAM_BOT_TOKEN not set in .env');
-    }
-  }
-});
+  // 3. Mount Adapter Webhooks
+  initializeTelegramWebhook(app);
 
-app.listen(PORT, () => {
-  console.log(`[VADJANIX] Router online at http://localhost:${PORT}`);
-  
-  // Initialize Discord Bot
-  initializeDiscordBot();
+  // 4. Initialize Independent Bot Clients
+  await initializeDiscordBot();
+  await initializeWhatsApp();
+
+  // 5. Start the Global Router
+  app.listen(PORT, () => {
+    console.log(`[VADJANIX] Boot sequence complete.`);
+    console.log(`[VADJANIX] Express server listening on port ${PORT}`);
+  });
+}
+
+boot().catch(err => {
+  console.error("[VADJANIX] FATAL BOOT ERROR:", err);
+  process.exit(1);
 });

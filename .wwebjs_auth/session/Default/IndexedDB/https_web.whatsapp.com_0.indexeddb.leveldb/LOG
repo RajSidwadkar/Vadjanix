@@ -1,0 +1,51 @@
+2026/03/28-21:19:23.209 644c Reusing MANIFEST D:\Projects\Vadjanix\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/03/28-21:19:23.210 644c Recovering log #751
+2026/03/28-21:19:23.298 644c Reusing old log D:\Projects\Vadjanix\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000751.log 
+2026/03/28-21:19:33.487 2d00 Level-0 table #768: started
+2026/03/28-21:19:33.530 2d00 Level-0 table #768: 1246948 bytes OK
+2026/03/28-21:19:33.532 2d00 Delete type=0 #751
+2026/03/28-21:19:33.669 2d00 Compacting 1@0 + 0@1 files
+2026/03/28-21:19:33.724 2d00 Generated table #769@0: 26885 keys, 543241 bytes
+2026/03/28-21:19:33.730 2d00 Generated table #770@0: 77 keys, 86384 bytes
+2026/03/28-21:19:33.731 2d00 Compacted 1@0 + 0@1 files => 629625 bytes
+2026/03/28-21:19:33.732 2d00 compacted to: files[ 0 2 18 0 0 0 0 ]
+2026/03/28-21:19:33.734 2d00 Compacting 1@1 + 11@2 files
+2026/03/28-21:19:33.783 2d00 Generated table #771@1: 3365 keys, 2120327 bytes
+2026/03/28-21:19:33.891 2d00 Generated table #772@1: 64848 keys, 2203784 bytes
+2026/03/28-21:19:34.028 2d00 Generated table #773@1: 103808 keys, 2254269 bytes
+2026/03/28-21:19:34.173 2d00 Generated table #774@1: 104118 keys, 2254413 bytes
+2026/03/28-21:19:34.308 2d00 Generated table #775@1: 91582 keys, 2240821 bytes
+2026/03/28-21:19:34.427 2d00 Generated table #776@1: 87148 keys, 2272277 bytes
+2026/03/28-21:19:34.534 2d00 Generated table #777@1: 49663 keys, 2215786 bytes
+2026/03/28-21:19:34.612 2d00 Generated table #778@1: 19178 keys, 2164882 bytes
+2026/03/28-21:19:34.648 2d00 Generated table #779@1: 975 keys, 2138671 bytes
+2026/03/28-21:19:34.697 2d00 Generated table #780@1: 1700 keys, 2141324 bytes
+2026/03/28-21:19:34.708 2d00 Generated table #781@1: 226 keys, 342123 bytes
+2026/03/28-21:19:34.709 2d00 Compacted 1@1 + 11@2 files => 22348677 bytes
+2026/03/28-21:19:34.710 2d00 compacted to: files[ 0 1 18 0 0 0 0 ]
+2026/03/28-21:19:34.720 2d00 Compacting 1@1 + 3@2 files
+2026/03/28-21:19:34.810 2d00 Generated table #782@1: 17539 keys, 2214270 bytes
+2026/03/28-21:19:34.931 2d00 Generated table #783@1: 34355 keys, 2222817 bytes
+2026/03/28-21:19:34.983 2d00 Generated table #784@1: 13541 keys, 1446119 bytes
+2026/03/28-21:19:34.984 2d00 Compacted 1@1 + 3@2 files => 5883206 bytes
+2026/03/28-21:19:34.985 2d00 compacted to: files[ 0 0 18 0 0 0 0 ]
+2026/03/28-21:19:34.986 2d00 Delete type=2 #769
+2026/03/28-22:00:39.908 2d00 Level-0 table #786: started
+2026/03/28-22:00:39.949 2d00 Level-0 table #786: 1139552 bytes OK
+2026/03/28-22:00:39.951 2d00 Delete type=2 #744
+2026/03/28-22:00:39.952 2d00 Delete type=2 #745
+2026/03/28-22:00:39.952 2d00 Delete type=2 #747
+2026/03/28-22:00:39.952 2d00 Delete type=2 #755
+2026/03/28-22:00:39.952 2d00 Delete type=2 #756
+2026/03/28-22:00:39.952 2d00 Delete type=2 #757
+2026/03/28-22:00:39.952 2d00 Delete type=2 #758
+2026/03/28-22:00:39.952 2d00 Delete type=2 #759
+2026/03/28-22:00:39.952 2d00 Delete type=2 #760
+2026/03/28-22:00:39.952 2d00 Delete type=2 #761
+2026/03/28-22:00:39.952 2d00 Delete type=2 #762
+2026/03/28-22:00:39.952 2d00 Delete type=2 #763
+2026/03/28-22:00:39.953 2d00 Delete type=2 #764
+2026/03/28-22:00:39.953 2d00 Delete type=2 #765
+2026/03/28-22:00:39.953 2d00 Delete type=0 #767
+2026/03/28-22:00:39.953 2d00 Delete type=2 #768
+2026/03/28-22:00:39.953 2d00 Delete type=2 #770

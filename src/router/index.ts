@@ -3,7 +3,7 @@ import { verifyPacketSignature } from '../voice/crypto.js';
 import { nostrSend } from '../voice/nostr.js';
 import { loopbackSend } from './loopback.js';
 import { routeToGoogleA2A, routeToOpenAIAgent } from './adapters.js';
-import { sendTelegramMessage } from './telegram.js';
+import { sendTelegramMessage } from '../adapters/telegram.js';
 import { ZodError } from 'zod';
 
 const AUTHORIZED_PUBKEY = process.env.VADJANIX_PUBKEY || "dummy_hex_key";

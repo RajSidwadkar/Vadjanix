@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { parseTelegramUpdate, sendTelegramMessage } from '../src/router/telegram.js';
+import { parseTelegramUpdate, sendTelegramMessage } from '../src/adapters/telegram.js';
 import { routePacket } from '../src/router/index.js';
 import { IntentPacket } from '../src/router/schema.js';
 

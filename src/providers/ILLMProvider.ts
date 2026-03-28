@@ -19,14 +19,16 @@ export interface ILLMProvider {
   /**
    * Send a prompt to the LLM.
    * @param prompt The user's input.
+   * @param sessionId A unique ID for the conversation session.
    * @returns A promise that resolves to an LLMResponse.
    */
-  sendMessage(prompt: string): Promise<LLMResponse>;
+  sendMessage(prompt: string, sessionId: string): Promise<LLMResponse>;
 
   /**
    * Send tool execution results back to the LLM to continue the conversation.
    * @param functionResponse The result(s) from tool execution.
+   * @param sessionId A unique ID for the conversation session.
    * @returns A promise that resolves to an LLMResponse.
    */
-  sendToolResponse(functionResponse: any): Promise<LLMResponse>;
+  sendToolResponse(functionResponse: any, sessionId: string): Promise<LLMResponse>;
 }
