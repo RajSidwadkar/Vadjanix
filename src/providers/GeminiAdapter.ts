@@ -1,98 +1,57 @@
-import { GoogleGenerativeAI, ChatSession, GenerativeModel } from '@google/generative-ai';
-import { ILLMProvider, LLMResponse, ToolCallRequest } from './ILLMProvider.js';
+import { ILLMProvider, LLMResponse } from './ILLMProvider.js';
 import 'dotenv/config';
 
 export class GeminiAdapter implements ILLMProvider {
-  private sessions: Map<string, ChatSession> = new Map();
-  private model: GenerativeModel | null = null;
-  private config: any = null;
+  public name = 'gemini';
+  private model = 'gemini-3.1-flash-lite-preview';
 
-  initialize(systemInstruction: string, tools: any[], config?: any): void {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("Missing GEMINI_API_KEY in .env");
-    }
+  async reason(prompt: string, context?: any): Promise<LLMResponse> {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY;
+    if (!apiKey) throw new Error("Missing GEMINI_API_KEY or GEMINI_KEY");
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const url = `https://generativelanguage.googleapis.com/v1/models/${this.model}:generateContent?key=${apiKey}`;
     
-    const modelConfig: any = {
-      model: "gemini-3.1-flash-lite-preview",
-      systemInstruction: {
-        role: "system",
-        parts: [{ text: systemInstruction }]
-      },
-      tools: []
+    const body: any = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: context?.generationConfig || {}
     };
 
-    if (tools && tools.length > 0) {
-      modelConfig.tools.push({ functionDeclarations: tools });
-    }
-
-    if (config) {
-      modelConfig.generationConfig = config;
-      this.config = config;
-    } else {
-      this.config = { temperature: 0 };
-    }
-
-    this.model = genAI.getGenerativeModel(modelConfig);
-  }
-
-  private getOrCreateSession(sessionId: string): ChatSession {
-    if (!this.model) {
-      throw new Error("GeminiAdapter not initialized. Call initialize() first.");
-    }
-
-    if (!this.sessions.has(sessionId)) {
-      const session = this.model.startChat({
-        history: [],
-        generationConfig: this.config,
-      });
-      this.sessions.set(sessionId, session);
-    }
-
-    return this.sessions.get(sessionId)!;
-  }
-
-  async sendMessage(prompt: string, sessionId: string): Promise<LLMResponse> {
-    const session = this.getOrCreateSession(sessionId);
-
-    try {
-      const result = await session.sendMessage([{ text: prompt }]);
-      return this.mapResponse(result.response);
-    } catch (error: any) {
-      console.error("GeminiAdapter sendMessage error:", error);
-      throw error;
-    }
-  }
-
-  async sendToolResponse(functionResponse: any, sessionId: string): Promise<LLMResponse> {
-    const session = this.getOrCreateSession(sessionId);
-
-    try {
-      const result = await session.sendMessage(functionResponse);
-      return this.mapResponse(result.response);
-    } catch (error: any) {
-      console.error("GeminiAdapter sendToolResponse error:", error);
-      throw error;
-    }
-  }
-
-  private mapResponse(response: any): LLMResponse {
-    let text: string | null = null;
-    try {
-      text = response.text();
-      if (text) text = text.trim();
-    } catch (e) {}
-    
-    const functionCalls = response.functionCalls();
-    let toolCall: ToolCallRequest | null = null;
-    if (functionCalls && functionCalls.length > 0) {
-      toolCall = {
-        name: functionCalls[0].name,
-        args: functionCalls[0].args,
+    if (context?.systemInstruction) {
+      body.system_instruction = {
+        parts: [{ text: context.systemInstruction }]
       };
     }
-    return { text, toolCall };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json() as any;
+      throw new Error(`Gemini Error: ${response.statusText} - ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json() as any;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    return {
+      text,
+      confidence: 0.91
+    };
+  }
+
+  async isAvailable(): Promise<boolean> {
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY;
+    if (!apiKey) return false;
+
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1/models/${this.model}?key=${apiKey}`;
+      const response = await fetch(url);
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
   }
 }

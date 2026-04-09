@@ -1,16 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
 import Database from 'better-sqlite3';
-import { IntentPacket, RoutingResult, CognitiveTrace } from '../router/schema.js';
-import { GeminiAdapter } from '../providers/GeminiAdapter.js';
+import { IntentPacket, RoutingResult } from '../router/schema.js';
+import { createAdapter } from '../providers/AdapterFactory.js';
 
 export class CognitiveRouter {
   private db: Database.Database;
-  private llm: GeminiAdapter;
 
   constructor(dbPath: string = 'memory/vadjanix.db') {
     this.db = new Database(dbPath);
-    this.llm = new GeminiAdapter();
     this.initializeSchema();
   }
 
@@ -56,7 +54,6 @@ export class CognitiveRouter {
   private async checkReflexes(input: string): Promise<RoutingResult | null> {
     const lowerInput = input.toLowerCase().trim();
 
-    // 1. Math Reflex (Hardcoded for Layer 1)
     const mathRegex = /^(\d+)\s*([\+\-\*\/])\s*(\d+)$/;
     const match = lowerInput.match(mathRegex);
     if (match) {
@@ -91,7 +88,6 @@ export class CognitiveRouter {
       };
     }
 
-    // 2. Principles Reflex
     const principles = await this.loadPrinciples();
     for (const reflex of principles.reflexes) {
       const trigger = reflex.trigger.toLowerCase();
@@ -170,8 +166,6 @@ export class CognitiveRouter {
   }
 
   private async causalInference(input: string): Promise<RoutingResult | null> {
-    // Using SQLite's REGEXP or a stricter LIKE pattern.
-    // For standard SQLite without extension, we can simulate word boundaries.
     const rows = this.db.prepare("SELECT cause, effect, confidence FROM causal_edges").all();
     
     let bestEdge: any = null;
@@ -218,28 +212,22 @@ export class CognitiveRouter {
   public async processUserInput(input: string, sessionId: string = "default"): Promise<RoutingResult> {
     const startTime = Date.now();
 
-    // 1. Layer 1: Reflexes
     const reflexResult = await this.checkReflexes(input);
     if (reflexResult) return reflexResult;
 
-    // 2. Layer 2: Causal
     const causalResult = await this.causalInference(input);
     if (causalResult) return causalResult;
 
-    // 3. Layer 3: Episodic
     const episodicResult = await this.findEpisodicMatch(input);
     if (episodicResult) return episodicResult;
 
-    // 4. Layer 4: LLM Fallback
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error("SOVEREIGNTY BREACH: Attempted to trigger Layer 4 (LLM) without valid GEMINI_API_KEY. Protocol locked.");
-    }
+    console.log("[ROUTER] Layers 1-3 confidence < 0.75. Triggering Sovereign LLM Fallback.");
     
-    console.log("[ROUTER] Layers 1-3 confidence < 0.75. Triggering LLM Fallback.");
-    this.llm.initialize("You are Vadjanix, a Sovereign AGI. Be concise.", []);
-    const response = await this.llm.sendMessage(input, sessionId);
+    const adapter = await createAdapter({ provider: process.env.DEFAULT_LLM || 'gemini' });
+    const response = await adapter.reason(input, {
+      systemInstruction: "You are Vadjanix, a Sovereign AGI. Be concise."
+    });
 
-    // Commit new episode
     const embedding = new Float32Array(this.getMockEmbedding(input));
     this.db.prepare('INSERT INTO episodes (input, output, embedding) VALUES (?, ?, ?)').run(
       input, response.text || "No response", Buffer.from(embedding.buffer)
@@ -248,21 +236,21 @@ export class CognitiveRouter {
     return {
       action: "query",
       source: "llm_required",
-      confidence: 0.95,
+      confidence: response.confidence,
       llmUsed: true,
       cognitiveTrace: {
-        strategy: "LLM fallback triggered",
+        strategy: `LLM fallback triggered via ${adapter.name}`,
         latencyEst: Date.now() - startTime,
         memoryState: "new_episode_pending",
         source: "llm_required",
-        confidence: 0.95
+        confidence: response.confidence
       },
       packet: {
         from: "vadjanix://brain",
         to: "user",
         action: "query",
         payload: { message: response.text || "I'm processing that." },
-        reasoning: "Synthesized via LLM fallback."
+        reasoning: "Synthesized via Sovereign LLM fallback."
       }
     };
   }

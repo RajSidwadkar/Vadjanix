@@ -10,7 +10,7 @@ import { evaluateProposal } from './negotiator.js';
 import { logDecision } from '../memory/audit.js';
 import { withTimeout, aggregateResults, AggregationStrategy } from './aggregator.js';
 import { logSwarmRun } from '../memory/swarm_logger.js';
-import { GeminiAdapter } from '../providers/GeminiAdapter.js';
+import { createAdapter } from '../providers/AdapterFactory.js';
 
 export type SwarmTask = { 
   goal: string; 
@@ -18,9 +18,6 @@ export type SwarmTask = {
   aggregator_strategy: AggregationStrategy; 
 };
 
-/**
- * Loads the core principles/constitution from the soul directory.
- */
 async function loadSoulContext(): Promise<string> {
   let soulContext = "";
   const soulPath = path.join(process.cwd(), 'soul');
@@ -38,12 +35,7 @@ async function loadSoulContext(): Promise<string> {
   return soulContext;
 }
 
-/**
- * 1.5 Deterministic Pre-Check Layer
- * Runs hardcoded regex checks to bypass LLM calls for clear violations.
- */
 function runDeterministicPreCheck(userPrompt: string): any | null {
-  // Rule 1: Minimum Rate Check ($250)
   const rateMatch = userPrompt.match(/\$(\d+)/);
   if (rateMatch) {
     const amount = parseInt(rateMatch[1], 10);
@@ -58,7 +50,6 @@ function runDeterministicPreCheck(userPrompt: string): any | null {
     }
   }
 
-  // Rule 2: Monday Prohibition
   if (/monday/i.test(userPrompt)) {
     return {
       from: 'vadjanix://brain',
@@ -72,7 +63,6 @@ function runDeterministicPreCheck(userPrompt: string): any | null {
   return null;
 }
 
-// 2. Memory Reader
 export async function loadRecentMemory(): Promise<string> {
   const memoryPath = path.join(process.cwd(), 'memory', 'context_log.md');
   try {
@@ -112,11 +102,6 @@ export async function logInteraction(userPrompt: string, packet: z.infer<typeof 
     console.error("Memory Write Failed:", error);
   }
 }
-
-
-
-const engineLlm = new GeminiAdapter();
-let isEngineInitialized = false;
 
 const SYSTEM_PROMPT = `You are Vadjanix, an uncompromising autonomous agent. 
 Evaluate requests against CONSTITUTION and RECENT MEMORY.
@@ -169,33 +154,30 @@ export async function generateIntent(userPrompt: string, soulOverride?: string, 
     required: ["from", "to", "action", "payload", "reasoning"]
   };
 
-  if (!isEngineInitialized) {
-    engineLlm.initialize(SYSTEM_PROMPT, [], {
-      temperature: 0,
-      responseMimeType: "application/json",
-      responseSchema: geminiSchema,
-    });
-    isEngineInitialized = true;
-  }
-
+  const adapter = await createAdapter({ provider: process.env.DEFAULT_LLM || 'gemini' });
   const contextMessage = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${recentMemory}\n\n[USER REQUEST]\n${userPrompt}`;
 
   try {
-    const response = await engineLlm.sendMessage(contextMessage, sessionId);
+    const response = await adapter.reason(contextMessage, {
+      systemInstruction: SYSTEM_PROMPT,
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: "application/json",
+        responseSchema: geminiSchema,
+      }
+    });
     const responseText = response.text || "{}";
     const parsed = JSON.parse(responseText);
     const validatedPacket = IntentPacketSchema.parse(parsed);
     await logInteraction(userPrompt, validatedPacket).catch(console.error);
     return validatedPacket;
   } catch (error: any) {
-    console.error("GEMINI ENGINE ERROR:", error);
+    console.error("BRAIN ERROR:", error);
     throw new Error(`BRAIN_ERROR: ${error.message}`);
   }
 }
 
-
 import { secureFetch } from '../router/network_guard.js';
-
 import { checkRateLimit, getLimitExceededResponse } from './rate_limiter.js';
 
 export async function processIncomingPacket(packet: IntentPacket, sessionId: string = "default-session"): Promise<IntentPacket> {
@@ -302,4 +284,3 @@ export async function executeSwarmTask(swarm: SwarmTask): Promise<IntentPacket> 
   await logSwarmRun(swarm.goal, swarm.aggregator_strategy, agentsTotal, agentsSuccess, agentsTimeout, finalPacket.payload.message, latencyMs);
   return finalPacket;
 }
-
