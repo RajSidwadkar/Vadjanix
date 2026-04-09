@@ -84,13 +84,12 @@ export async function loadRecentMemory(): Promise<string> {
   }
 }
 
-// 3. Memory Writer
+import { gateMemoryWrite } from '../memory/memory_write_gate.js';
+
 export async function logInteraction(userPrompt: string, packet: z.infer<typeof IntentPacketSchema>, counterpartyId: string = "user_default") {
   const memoryDir = path.join(process.cwd(), 'memory');
   const contextLogPath = path.join(memoryDir, 'context_log.md');
   const timestamp = new Date().toISOString();
-
-  // Extract dollar amount from user prompt for state tracking
   const amountMatch = userPrompt.match(/\$(\d+(?:,\d+)*(?:\.\d+)?)/);
   const offerAmount = amountMatch ? amountMatch[0] : "N/A";
 
@@ -103,6 +102,9 @@ export async function logInteraction(userPrompt: string, packet: z.infer<typeof 
 - **Vadjanix:** "${packet.payload.message}"
 `;
 
+  const isAllowed = await gateMemoryWrite(logEntry, counterpartyId, 1.0);
+  if (!isAllowed) return;
+
   try {
     await fs.mkdir(memoryDir, { recursive: true });
     await fs.appendFile(contextLogPath, logEntry, 'utf-8');
@@ -112,13 +114,26 @@ export async function logInteraction(userPrompt: string, packet: z.infer<typeof 
 }
 
 
-// Persistent LLM instance for Intent Generation
+
 const engineLlm = new GeminiAdapter();
 let isEngineInitialized = false;
 
-// 4. Gemini Engine with TypeScript Override
+const SYSTEM_PROMPT = `You are Vadjanix, an uncompromising autonomous agent. 
+Evaluate requests against CONSTITUTION and RECENT MEMORY.
+JSON Schema:
+{
+  "from": "vadjanix://brain",
+  "to": "user",
+  "action": "read" | "write" | "propose" | "query" | "call" | "refuse",
+  "payload": { "message": "string", "details": { "strategy": "compromise" | "hold_firm" | "walk_away" } },
+  "reasoning": "string"
+}
+Rules:
+1. "refuse" if CONSTITUTION violated.
+2. "reasoning" must cite CONSTITUTION rule.
+3. Reply directly in "payload.message".`;
+
 export async function generateIntent(userPrompt: string, soulOverride?: string, sessionId: string = "default-intent-session") {
-  // Intercept with deterministic guardrails (Skip if in simulation mode to allow custom logic)
   if (process.env.SIMULATION_MODE !== 'true') {
     const guardrailTrip = runDeterministicPreCheck(userPrompt);
     if (guardrailTrip) {
@@ -131,28 +146,19 @@ export async function generateIntent(userPrompt: string, soulOverride?: string, 
   let soulContext = soulOverride || await loadSoulContext();
   const recentMemory = await loadRecentMemory();
 
-  // Define schema with literal strings instead of SchemaType enum
   const geminiSchema: any = {
     type: "object",
     properties: {
       from: { type: "string" },
       to: { type: "string" },
-      action: { 
-        type: "string", 
-        enum: ['read', 'write', 'propose', 'query', 'call', 'refuse'] 
-      },
+      action: { type: "string", enum: ['read', 'write', 'propose', 'query', 'call', 'refuse'] },
       payload: {
         type: "object",
         properties: { 
           message: { type: "string" },
           details: {
             type: "object",
-            properties: {
-              strategy: { 
-                type: "string", 
-                enum: ['compromise', 'hold_firm', 'walk_away']
-              }
-            },
+            properties: { strategy: { type: "string", enum: ['compromise', 'hold_firm', 'walk_away'] } },
             required: ["strategy"]
           }
         },
@@ -163,57 +169,23 @@ export async function generateIntent(userPrompt: string, soulOverride?: string, 
     required: ["from", "to", "action", "payload", "reasoning"]
   };
 
-  // Initialize model only once
   if (!isEngineInitialized) {
-    console.log("[BRAIN] Initializing persistent Engine LLM...");
-    engineLlm.initialize(
-      `You are Vadjanix, an uncompromising autonomous agent.
-
-CONSTITUTION (CORE RULES):
-${soulContext}
-
-RECENT MEMORY (CONTEXT):
-${recentMemory}
-
-SYSTEM INSTRUCTIONS FOR JSON MAPPING:
-You must evaluate the USER REQUEST against your CONSTITUTION and map your decision to the exact JSON fields below:
-
-1. HOW TO CHOOSE THE "action":
-   - You MUST select "refuse" IF the user's request violates ANY rule in the CONSTITUTION (e.g., offering less than your minimum rate, or asking for a meeting on a restricted day like Monday or the Weekend).
-   - You MUST select "write" IF the request is valid, safe, or just asks a general question.
-
-2. HOW TO WRITE THE "payload.message":
-   - This is YOUR direct reply to the user.
-   - NEVER just echo the user's request back to them. 
-   - If your action is "refuse", explicitly state the rule they broke in your response (e.g., "I decline. My minimum engagement rate is $250.").
-
-3. HOW TO WRITE THE "reasoning":
-   - Name the exact rule/file from the CONSTITUTION you are applying.
-
-4. STATIC ROUTING FIELDS:
-   - The "from" field MUST always be exactly: "vadjanix://brain"
-   - The "to" field MUST always be exactly: "user"`,
-      [], // No tools for this intent generation
-      {
-        temperature: 0,
-        responseMimeType: "application/json",
-        responseSchema: geminiSchema,
-      }
-    );
+    engineLlm.initialize(SYSTEM_PROMPT, [], {
+      temperature: 0,
+      responseMimeType: "application/json",
+      responseSchema: geminiSchema,
+    });
     isEngineInitialized = true;
   }
 
-  const prompt = `USER REQUEST: "${userPrompt}"`;
+  const contextMessage = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${recentMemory}\n\n[USER REQUEST]\n${userPrompt}`;
 
   try {
-    const response = await engineLlm.sendMessage(prompt, sessionId);
+    const response = await engineLlm.sendMessage(contextMessage, sessionId);
     const responseText = response.text || "{}";
-    
     const parsed = JSON.parse(responseText);
     const validatedPacket = IntentPacketSchema.parse(parsed);
-
     await logInteraction(userPrompt, validatedPacket).catch(console.error);
-
     return validatedPacket;
   } catch (error: any) {
     console.error("GEMINI ENGINE ERROR:", error);
@@ -221,11 +193,18 @@ You must evaluate the USER REQUEST against your CONSTITUTION and map your decisi
   }
 }
 
-/**
- * Switchboard for incoming packets. 
- * Routes to Negotiator, Chat, or Task Runner based on action.
- */
-export async function processIncomingPacket(packet: IntentPacket, sessionId?: string): Promise<IntentPacket> {
+
+import { secureFetch } from '../router/network_guard.js';
+
+import { checkRateLimit, getLimitExceededResponse } from './rate_limiter.js';
+
+export async function processIncomingPacket(packet: IntentPacket, sessionId: string = "default-session"): Promise<IntentPacket> {
+  if (packet.action === 'call') {
+    if (!checkRateLimit(sessionId)) {
+      return getLimitExceededResponse(sessionId);
+    }
+  }
+
   const principles = await loadSoulContext();
   let outboundPacket: IntentPacket;
 
@@ -233,54 +212,28 @@ export async function processIncomingPacket(packet: IntentPacket, sessionId?: st
 
   switch (packet.action) {
     case 'propose': {
-      // Logic for Negotiator switchboard
       const details = packet.payload.details;
       const strategy = (details as any)?.strategy || 'compromise';
-      
-      // Attempt to extract the last offer from the message or payload
       const amountMatch = packet.payload.message.match(/\$(\d+)/);
       const incomingOffer = amountMatch ? parseInt(amountMatch[1], 10) : 300;
-      
-      // Default Negotiator Params (Seller Role)
       const SELLER_LIMIT = 250;
       const CONCESSION_STEP = 10;
-      
-      outboundPacket = await evaluateProposal(
-        strategy as any, 
-        'seller', 
-        SELLER_LIMIT, 
-        incomingOffer, 
-        CONCESSION_STEP
-      );
+      outboundPacket = await evaluateProposal(strategy as any, 'seller', SELLER_LIMIT, incomingOffer, CONCESSION_STEP);
       break;
     }
-
     case 'read':
     case 'write': {
       outboundPacket = await handleChat(packet, principles, sessionId);
-      await logDecision(
-        packet.action,
-        `Message: "${packet.payload.message.substring(0, 30)}..."`,
-        'Conversational Protocol',
-        'Generated chat response.'
-      );
+      await logDecision(packet.action, `Message: "${packet.payload.message.substring(0, 30)}..."`, 'Conversational Protocol', 'Generated chat response.');
       break;
     }
-
     case 'call': {
       outboundPacket = await executeTask(packet);
       const task_name = (packet.payload.details as any)?.task_name;
-      await logDecision(
-        'call',
-        `Task: ${task_name}`,
-        'Registry Execution Pattern',
-        outboundPacket.action === 'write' ? 'Task executed successfully.' : 'Task failed or unauthorized.'
-      );
+      await logDecision('call', `Task: ${task_name}`, 'Registry Execution Pattern', outboundPacket.action === 'write' ? 'Task executed successfully.' : 'Task failed or unauthorized.');
       break;
     }
-
     default: {
-      console.warn(`[BRAIN] Unhandled action: ${packet.action}`);
       outboundPacket = {
         from: 'vadjanix://brain',
         to: packet.reply_to || packet.from,
@@ -288,23 +241,14 @@ export async function processIncomingPacket(packet: IntentPacket, sessionId?: st
         payload: { message: "Action not recognized or unsupported by Brain switchboard." },
         reasoning: `Unhandled action: ${packet.action}`
       };
-      await logDecision(
-        'refuse',
-        `Action: ${packet.action}`,
-        'Switchboard Guardrail',
-        'Refused due to unsupported action.'
-      );
+      await logDecision('refuse', `Action: ${packet.action}`, 'Switchboard Guardrail', 'Refused due to unsupported action.');
     }
   }
 
-  // Ensure routing is correct (Reply to sender)
   outboundPacket.to = packet.reply_to || packet.from;
-
-  // Outbound HTTP fetch call to the Router
   const ROUTER_URL = process.env.ROUTER_URL || 'http://localhost:3000/';
   try {
-    console.log(`[BRAIN] Sending response to Router: ${outboundPacket.action}`);
-    await fetch(ROUTER_URL, {
+    await secureFetch(ROUTER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(outboundPacket)
@@ -312,14 +256,9 @@ export async function processIncomingPacket(packet: IntentPacket, sessionId?: st
   } catch (error: any) {
     console.error(`[BRAIN] Failed to reach Router: ${error.message}`);
   }
-
   return outboundPacket;
 }
 
-/**
- * Parallel Fan-Out execution for SwarmTasks.
- * Dispatches multiple subtasks to the Router simultaneously with a timeout.
- */
 export async function executeSwarmTask(swarm: SwarmTask): Promise<IntentPacket> {
   const ROUTER_URL = process.env.ROUTER_URL || 'http://localhost:3000/';
   const startTime = Date.now();
@@ -329,14 +268,13 @@ export async function executeSwarmTask(swarm: SwarmTask): Promise<IntentPacket> 
     swarm.subtasks.map(async (packet) => {
       const dispatchPromise = (async () => {
         try {
-          const response = await fetch(ROUTER_URL, {
+          const response = await secureFetch(ROUTER_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(packet)
           });
           return await response.json() as IntentPacket;
         } catch (error: any) {
-          console.error(`[BRAIN] Swarm dispatch failed for subtask: ${error.message}`);
           return {
             from: 'vadjanix://brain',
             to: packet.to,
@@ -346,35 +284,22 @@ export async function executeSwarmTask(swarm: SwarmTask): Promise<IntentPacket> 
           } as IntentPacket;
         }
       })();
-
       return withTimeout(dispatchPromise, 10000);
     })
   );
 
   const finalPacket = await aggregateResults(results, swarm.aggregator_strategy);
   const latencyMs = Date.now() - startTime;
-
   const agentsSuccess: string[] = [];
   const agentsTimeout: string[] = [];
 
   results.forEach((res, index) => {
     const agentAddr = swarm.subtasks[index].to;
-    if (res === null) {
-      agentsTimeout.push(agentAddr);
-    } else {
-      agentsSuccess.push(agentAddr);
-    }
+    if (res === null) agentsTimeout.push(agentAddr);
+    else agentsSuccess.push(agentAddr);
   });
 
-  await logSwarmRun(
-    swarm.goal,
-    swarm.aggregator_strategy,
-    agentsTotal,
-    agentsSuccess,
-    agentsTimeout,
-    finalPacket.payload.message,
-    latencyMs
-  );
-
+  await logSwarmRun(swarm.goal, swarm.aggregator_strategy, agentsTotal, agentsSuccess, agentsTimeout, finalPacket.payload.message, latencyMs);
   return finalPacket;
 }
+

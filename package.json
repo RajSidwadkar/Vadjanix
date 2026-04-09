@@ -15,7 +15,8 @@
     "test:audit": "tsx tests/test_audit.ts",
     "test:adapters": "tsx tests/test_adapters.ts",
     "test:telegram": "tsx tests/validate_telegram.ts",
-    "test:all": "tsx tests/validate_system.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts && tsx tests/test_task_runner.ts && tsx tests/test_reputation.ts && tsx tests/test_audit.ts && tsx tests/test_adapters.ts && tsx tests/test_swarm.ts && tsx tests/validate_telegram.ts",
+    "test:security": "tsx tests/test_security_phase1.ts",
+    "test:all": "npm run test:security && tsx tests/validate_system.ts && tsx tests/test_chat.ts && tsx tests/test_negotiator.ts && tsx tests/test_task_runner.ts && tsx tests/test_reputation.ts && tsx tests/test_audit.ts && tsx tests/test_adapters.ts && tsx tests/test_swarm.ts && tsx tests/validate_telegram.ts",
     "prepare": "husky"
   },
   "dependencies": {

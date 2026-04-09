@@ -1,21 +1,13 @@
-import { SimplePool, finalizeEvent } from 'nostr-tools';
+import { SimplePool, finalizeEvent, verifyEvent } from 'nostr-tools';
 import { AgentIdentity } from '../config/identity.js';
 import { IntentPacket, IntentPacketSchema } from '../router/schema.js';
 import { logSecurityEvent } from '../router/audit.js';
-import { number } from 'zod/v4';
 
-// Default Nostr relays
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];
 const pool = new SimplePool();
-// ... (nostrSend remains the same)
-/**
- * Sends an IntentPacket via Nostr network as an ephemeral event (kind 29999).
- * @param packet The IntentPacket to be sent.
- * @returns Success boolean.
- */
+
 export async function nostrSend(packet: IntentPacket): Promise<boolean> {
   try {
-    // 1. Parse packet.to to extract destination pubkey
     let targetPubKey = packet.to;
     try {
       if (targetPubKey.includes('://')) {
@@ -26,18 +18,14 @@ export async function nostrSend(packet: IntentPacket): Promise<boolean> {
         targetPubKey = url.pathname;
       }
     } catch (e) {
-      // Fallback manual stripping
       targetPubKey = targetPubKey.replace('vadjanix://', '').replace('vadjanix:', '');
     }
-    // Handle cases like vadjanix://pubkey/path or vadjanix:pubkey/path
     targetPubKey = targetPubKey.split('/')[0];
 
-    // Basic validation of pubkey
     if (!/^[0-9a-fA-F]{64}$/.test(targetPubKey)) {
       throw new Error(`Invalid destination pubkey: ${targetPubKey}`);
     }
 
-    // 2. Wrap packet into Nostr event object (kind 29999)
     const eventTemplate = {
       kind: 29999,
       created_at: Math.floor(Date.now() / 1000),
@@ -45,15 +33,12 @@ export async function nostrSend(packet: IntentPacket): Promise<boolean> {
       content: JSON.stringify(packet),
     };
 
-    // 3. Sign the Nostr event
     const privateKeyBytes = Buffer.from(AgentIdentity.privateKey, 'hex');
     const signedEvent = finalizeEvent(eventTemplate, privateKeyBytes);
 
-    // 4. Publish to relays
     console.log(`[NOSTR] Attempting to broadcast to relays for ${targetPubKey}...`);
     const pubs = pool.publish(DEFAULT_RELAYS, signedEvent);
     
-    // Wait for at least one success
     await Promise.any(pubs);
     
     console.log(`[NOSTR] Packet broadcasted successfully to at least one relay.`);
@@ -64,10 +49,6 @@ export async function nostrSend(packet: IntentPacket): Promise<boolean> {
   }
 }
 
-/**
- * Listens for kind 29999 Nostr events addressed to this agent.
- * @param onPacketReceived Callback for when a packet is received.
- */
 export function nostrListen(onPacketReceived: (packet: any) => void) {
   const pubkey = AgentIdentity.publicKey;
   console.log(`[NOSTR] Starting listener for kind 29999, targeting pubkey: ${pubkey}`);
@@ -82,6 +63,11 @@ export function nostrListen(onPacketReceived: (packet: any) => void) {
     ],
     {
       onevent(event) {
+        if (!verifyEvent(event)) {
+          logSecurityEvent('Signature Failure', `Nostr pubkey ${event.pubkey}`, 'Invalid Ed25519 signature');
+          return;
+        }
+
         let parsedJson: any;
         try {
           parsedJson = JSON.parse(event.content);
@@ -96,8 +82,15 @@ export function nostrListen(onPacketReceived: (packet: any) => void) {
           return;
         }
 
-        console.log(`[NOSTR] Received valid packet from ${event.pubkey}`);
-        onPacketReceived(result.data);
+        const packet = result.data;
+        const senderPubkey = packet.from.replace('vadjanix://', '').replace('vadjanix:', '').split('/')[0];
+        if (senderPubkey !== event.pubkey) {
+          logSecurityEvent('Pubkey Mismatch', `Nostr event pubkey ${event.pubkey}`, `Packet declares from: ${packet.from}`);
+          return;
+        }
+
+        console.log(`[NOSTR] Received verified packet from ${event.pubkey}`);
+        onPacketReceived(packet);
       },
       oneose() {
         console.log("[NOSTR] Relay subscription reached End of Stored Events (EOSE).");
@@ -110,3 +103,4 @@ export function nostrListen(onPacketReceived: (packet: any) => void) {
 
   return sub;
 }
+

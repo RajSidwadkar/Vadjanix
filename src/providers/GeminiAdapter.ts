@@ -16,17 +16,17 @@ export class GeminiAdapter implements ILLMProvider {
     const genAI = new GoogleGenerativeAI(apiKey);
     
     const modelConfig: any = {
-      model: "gemini-1.5-flash",
-      systemInstruction,
+      model: "gemini-3.1-flash-lite-preview",
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: systemInstruction }]
+      },
       tools: []
     };
 
     if (tools && tools.length > 0) {
       modelConfig.tools.push({ functionDeclarations: tools });
     }
-
-    // Enable live web grounding
-    modelConfig.tools.push({ googleSearch: {} });
 
     if (config) {
       modelConfig.generationConfig = config;
@@ -44,7 +44,6 @@ export class GeminiAdapter implements ILLMProvider {
     }
 
     if (!this.sessions.has(sessionId)) {
-      console.log(`[MEMORY] Spinning up new session for: ${sessionId}`);
       const session = this.model.startChat({
         history: [],
         generationConfig: this.config,
@@ -59,7 +58,7 @@ export class GeminiAdapter implements ILLMProvider {
     const session = this.getOrCreateSession(sessionId);
 
     try {
-      const result = await session.sendMessage(prompt);
+      const result = await session.sendMessage([{ text: prompt }]);
       return this.mapResponse(result.response);
     } catch (error: any) {
       console.error("GeminiAdapter sendMessage error:", error);
@@ -82,15 +81,11 @@ export class GeminiAdapter implements ILLMProvider {
   private mapResponse(response: any): LLMResponse {
     let text: string | null = null;
     try {
-      // Use result.response.text() which might throw if no text part exists
       text = response.text();
       if (text) text = text.trim();
-    } catch (e) {
-      // No text part, probably just function calls
-    }
+    } catch (e) {}
     
     const functionCalls = response.functionCalls();
-    
     let toolCall: ToolCallRequest | null = null;
     if (functionCalls && functionCalls.length > 0) {
       toolCall = {
@@ -98,7 +93,6 @@ export class GeminiAdapter implements ILLMProvider {
         args: functionCalls[0].args,
       };
     }
-
     return { text, toolCall };
   }
 }
