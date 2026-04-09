@@ -2,6 +2,7 @@ import { SimplePool, finalizeEvent } from 'nostr-tools';
 import { AgentIdentity } from '../config/identity.js';
 import { IntentPacket, IntentPacketSchema } from '../router/schema.js';
 import { logSecurityEvent } from '../router/audit.js';
+import { number } from 'zod/v4';
 
 // Default Nostr relays
 const DEFAULT_RELAYS = ['wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net'];

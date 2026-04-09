@@ -1,1 +1,1 @@
-npm run test:all
+npx tsx src/tests/stress_test.ts && npm run test:all

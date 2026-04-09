@@ -1,4 +1,0 @@
-Integer
-Yes
-Boolean
--1

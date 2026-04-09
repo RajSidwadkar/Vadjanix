@@ -1,12 +1,26 @@
-import { IntentPacketSchema, IntentPacket, RouterResult } from './schema.js';
+import { IntentPacketSchema, IntentPacket, RouterResult, RoutingResult } from './schema.js';
 import { verifyPacketSignature } from '../voice/crypto.js';
 import { nostrSend } from '../voice/nostr.js';
 import { loopbackSend } from './loopback.js';
 import { routeToGoogleA2A, routeToOpenAIAgent } from './adapters.js';
 import { sendTelegramMessage } from '../adapters/telegram.js';
 import { ZodError } from 'zod';
+import { CognitiveRouter } from '../brain/router.js';
+import { logCognitiveTrace } from './audit.js';
 
 const AUTHORIZED_PUBKEY = process.env.VADJANIX_PUBKEY || "dummy_hex_key";
+
+const router = new CognitiveRouter();
+
+/**
+ * High-level entry point for raw user strings.
+ * Orchestrates the Cognitive Router layers and logs the trace.
+ */
+export async function processUserInput(input: string, sessionId: string = "default"): Promise<RoutingResult> {
+  const result = await router.processUserInput(input, sessionId);
+  logCognitiveTrace(result);
+  return result;
+}
 
 export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
   try {
@@ -26,7 +40,11 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
     try {
       url = new URL(validPacket.to);
     } catch (e) {
-      return { success: false, status: 400, error: `MALFORMED URL: ${validPacket.to}` };
+      if (validPacket.to.startsWith('vadjanix://')) {
+        url = new URL(validPacket.to.replace('vadjanix://', 'vadjanix:'));
+      } else {
+        return { success: false, status: 400, error: `MALFORMED URL: ${validPacket.to}` };
+      }
     }
     const targetProtocol = url.protocol;
 
@@ -46,7 +64,7 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
     switch (targetProtocol) {
       case 'vadjanix:':
         console.log("ROUTER: Vadjanix protocol routing message.");
-        if (process.env.SIMULATION_MODE === 'true') {
+        if (process.env.SIMULATION_MODE === 'true' || validPacket.to === 'vadjanix:user') {
           return await loopbackSend(validPacket);
         }
         const sendResult = await nostrSend(validPacket);
@@ -68,25 +86,12 @@ export async function routePacket(rawPacket: unknown): Promise<RouterResult> {
         } catch (error: any) {
           return { success: false, status: 502, error: `Telegram API error: ${error.message}` };
         }
-      case 'db:':
-        console.log("ROUTER: Database execution message.");
-        return { success: true, status: 200, data: { protocol: 'db:', message: "Database operation mocked" } };
-      case 'file:':
-        console.log("ROUTER: File handler message.");
-        return { success: true, status: 200, data: { protocol: 'file:', message: "File handler operation mocked" } };
-      case 'mcp:':
-        console.log("ROUTER: MCP call message.");
-        return { success: true, status: 200, data: { protocol: 'mcp:', message: "MCP call operation mocked" } };
-      case 'https:':
-      case 'http:':
-        console.log("ROUTER: Native Fetch message.");
-        return { success: true, status: 200, data: { protocol: targetProtocol, message: "Fetch operation mocked" } };
       case 'google-a2a:':
         return await routeToGoogleA2A(validPacket);
       case 'openai-agent:':
         return await routeToOpenAIAgent(validPacket);
       default:
-        return { success: false, status: 404, error: `ROUTING FATAL: Unsupported protocol prefix ${targetProtocol}` };
+        return { success: false, status: 200, data: { message: `Route to ${targetProtocol} acknowledged (Mock)` } };
     }
   } catch (err: any) {
     return { success: false, status: 500, error: `CATASTROPHIC ERROR: ${err.message}` };

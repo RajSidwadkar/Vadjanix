@@ -53,3 +53,20 @@ export interface RouterResult {
   data?: any;
   error?: string;
 }
+
+export interface CognitiveTrace {
+  strategy: string;
+  latencyEst: number;
+  memoryState: string;
+  source: "reflex" | "episodic_replay" | "causal" | "llm_required";
+  confidence: number;
+}
+
+export interface RoutingResult {
+  action: string;
+  source: "reflex" | "episodic_replay" | "causal" | "llm_required";
+  confidence: number;
+  llmUsed: boolean;
+  cognitiveTrace: CognitiveTrace;
+  packet?: IntentPacket;
+}

@@ -1,3 +1,9 @@
 node_modules
 .env
+vadjanix.db
+memory/vadjanix.db
+memory/*.log
 memory/*.md
+dist/
+.wwebjs_auth/
+.wwebjs_cache/

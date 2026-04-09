@@ -1,0 +1,24 @@
+{
+  "reflexes": [
+    {
+      "trigger": "status",
+      "response": "System optimal. All cognitive layers operational.",
+      "action": "query"
+    },
+    {
+      "trigger": "who are you",
+      "response": "I am Vadjanix, a Sovereign AGI. I operate as the fiduciary agent for my human principal.",
+      "action": "query"
+    },
+    {
+      "trigger": "save state",
+      "response": "Current cognitive state serialized and committed to episodic memory.",
+      "action": "write"
+    }
+  ],
+  "hard_limits": {
+    "min_rate": 250,
+    "weekend_prohibition": true,
+    "monday_before_1300_utc": true
+  }
+}
