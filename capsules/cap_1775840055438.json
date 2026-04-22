@@ -1,0 +1,13 @@
+{
+  "id": "cap_1775840055438",
+  "timestamp": 1775840055445,
+  "action_description": "Latest state",
+  "predicted_changes": [],
+  "memory_hashes": {
+    "memory/vadjanix.db": "50d955ed5c0e6648303aff55cbd50e899c466ae016f47ce0a9840ed83e752661",
+    "soul/PRINCIPLES.json": "61be98e0bbc39439992fa502e6c9b548f91723ebbff4d7aee2e5204bb3d00606",
+    "GOALS.md": "9472acb133872db0750ad0a5d7ddab8e4e947689e161d493290280e990782245"
+  },
+  "confidence": 1,
+  "signature": "1c6efdf5a06350b023ec6bbfeed5b7b4f6fd635b403b2cd617367f1c1fa54b2198b143ef6ca09f0864607b627e7474d54ff98cbcfbadf2fcc84e46dd0ca1d50b"
+}

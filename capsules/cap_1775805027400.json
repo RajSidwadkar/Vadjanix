@@ -1,0 +1,13 @@
+{
+  "id": "cap_1775805027400",
+  "timestamp": 1775805027403,
+  "action_description": "State before corruption",
+  "predicted_changes": [],
+  "memory_hashes": {
+    "memory/vadjanix.db": "3e9ab242136136af3fdf13bc20c2a4b76fda2b45f3138f9cd29e302e1a973e17",
+    "soul/PRINCIPLES.json": "61be98e0bbc39439992fa502e6c9b548f91723ebbff4d7aee2e5204bb3d00606",
+    "GOALS.md": "9472acb133872db0750ad0a5d7ddab8e4e947689e161d493290280e990782245"
+  },
+  "confidence": 1,
+  "signature": "a56dc76210d6de8117212475394a4286cf58ffa4394329789637d8c28cdd456f47784eb4b11ed1a37e7e24bbcdcee5c604771b728fddd7bee3900d1876fe710d"
+}

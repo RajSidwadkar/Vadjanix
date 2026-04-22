@@ -1,25 +1,32 @@
 import { IntentPacket } from '../router/schema.js';
 
-const SESSION_LIMIT = 20;
-const SESSION_STORE: Map<string, number> = new Map();
+export class RateLimiter {
+  private sessionLimit: number;
+  private sessionStore: Map<string, number>;
 
-export function checkRateLimit(sessionId: string): boolean {
-  const currentCount = SESSION_STORE.get(sessionId) || 0;
-  if (currentCount >= SESSION_LIMIT) {
-    return false;
+  constructor(limit: number = 20) {
+    this.sessionLimit = limit;
+    this.sessionStore = new Map();
   }
-  SESSION_STORE.set(sessionId, currentCount + 1);
-  return true;
-}
 
-export function getLimitExceededResponse(sessionId: string): IntentPacket {
-  return {
-    from: 'vadjanix://brain',
-    to: 'user',
-    action: 'refuse',
-    payload: { 
-      message: 'Rate limit exceeded. Maximum compute sessions reached.' 
-    },
-    reasoning: `Session ${sessionId} reached max tool execution limit (${SESSION_LIMIT}).`
-  };
+  public checkRateLimit(sessionId: string): boolean {
+    const currentCount = this.sessionStore.get(sessionId) || 0;
+    if (currentCount >= this.sessionLimit) {
+      return false;
+    }
+    this.sessionStore.set(sessionId, currentCount + 1);
+    return true;
+  }
+
+  public getLimitExceededResponse(sessionId: string): IntentPacket {
+    return {
+      from: 'vadjanix://brain',
+      to: 'user',
+      action: 'refuse',
+      payload: { 
+        message: 'Rate limit exceeded. Maximum compute sessions reached.' 
+      },
+      reasoning: `Session ${sessionId} reached max tool execution limit (${this.sessionLimit}).`
+    };
+  }
 }

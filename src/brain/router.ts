@@ -1,10 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
 import Database from 'better-sqlite3';
-import { IntentPacket, RoutingResult } from '../router/schema.js';
-import { createAdapter } from '../providers/AdapterFactory.js';
+import { RoutingResult } from '../router/schema.js';
+import { createAdapter } from '../infrastructure/adapters/AdapterFactory.js';
 
-export class CognitiveRouter {
+export class Router {
   private db: Database.Database;
 
   constructor(dbPath: string = 'memory/vadjanix.db') {
@@ -32,8 +32,7 @@ export class CognitiveRouter {
   }
 
   private async loadPrinciples() {
-    const principlesPath = path.join(process.cwd(), 'soul/PRINCIPLES.json');
-    const content = await fs.readFile(principlesPath, 'utf-8');
+    const content = await fs.readFile(path.join(process.cwd(), 'PRINCIPLES.json'), 'utf-8');
     return JSON.parse(content);
   }
 
@@ -51,11 +50,30 @@ export class CognitiveRouter {
     return embedding.map(v => v / (mag || 1));
   }
 
-  private async checkReflexes(input: string): Promise<RoutingResult | null> {
-    const lowerInput = input.toLowerCase().trim();
+  public async processUserInput(input: string): Promise<RoutingResult> {
+    const reflex = await this.checkReflexes(input);
+    if (reflex) return reflex;
+    const causal = await this.causalInference(input);
+    if (causal) return causal;
+    const episodic = await this.findEpisodicMatch(input);
+    if (episodic) return episodic;
+    const adapter = await createAdapter({ provider: process.env.DEFAULT_LLM || 'gemini' });
+    const response = await adapter.reason(input, { systemInstruction: "You are Vadjanix. Be concise." });
+    const embedding = new Float32Array(this.getMockEmbedding(input));
+    this.db.prepare('INSERT INTO episodes (input, output, embedding) VALUES (?, ?, ?)').run(input, response.text, Buffer.from(embedding.buffer));
+    return {
+      action: "query",
+      source: "llm_required",
+      confidence: response.confidence,
+      llmUsed: true,
+      cognitiveTrace: { strategy: "LLM fallback", latencyEst: 500, memoryState: "new", source: "llm_required", confidence: response.confidence },
+      packet: { from: "vadjanix://brain", to: "user", action: "query", payload: { message: response.text }, reasoning: "LLM fallback." }
+    };
+  }
 
+  private async checkReflexes(input: string): Promise<RoutingResult | null> {
     const mathRegex = /^(\d+)\s*([\+\-\*\/])\s*(\d+)$/;
-    const match = lowerInput.match(mathRegex);
+    const match = input.match(mathRegex);
     if (match) {
       const a = parseInt(match[1]);
       const op = match[2];
@@ -65,56 +83,19 @@ export class CognitiveRouter {
       if (op === '-') res = a - b;
       if (op === '*') res = a * b;
       if (op === '/') res = a / b;
-
       return {
-        action: "query",
-        source: "reflex",
-        confidence: 1.0,
-        llmUsed: false,
-        cognitiveTrace: {
-          strategy: "Math Reflex: Evaluated arithmetic expression",
-          latencyEst: 1,
-          memoryState: "read-only",
-          source: "reflex",
-          confidence: 1.0
-        },
-        packet: {
-          from: "vadjanix://reflex",
-          to: "user",
-          action: "query",
-          payload: { message: res.toString() },
-          reasoning: "Direct arithmetic reflex."
-        }
+        action: "query", source: "reflex", confidence: 1.0, llmUsed: false,
+        cognitiveTrace: { strategy: "Math", latencyEst: 1, memoryState: "none", source: "reflex", confidence: 1.0 },
+        packet: { from: "vadjanix://reflex", to: "user", action: "query", payload: { message: res.toString() }, reasoning: "Math reflex." }
       };
     }
-
     const principles = await this.loadPrinciples();
     for (const reflex of principles.reflexes) {
-      const trigger = reflex.trigger.toLowerCase();
-      const regex = new RegExp(`\\b${trigger}\\b`, 'i');
-      if (regex.test(lowerInput)) {
+      if (new RegExp(`\\b${reflex.trigger}\\b`, 'i').test(input)) {
         return {
-          action: reflex.action,
-          source: "reflex",
-          confidence: 1.0,
-          llmUsed: false,
-          cognitiveTrace: {
-            strategy: `Matched reflex: ${reflex.trigger}`,
-            latencyEst: 5,
-            memoryState: "read-only",
-            source: "reflex",
-            confidence: 1.0
-          },
-          packet: {
-            from: "vadjanix://reflex",
-            to: "user",
-            action: reflex.action as any,
-            payload: {
-              message: reflex.response,
-              details: reflex.task_name ? { task_name: reflex.task_name } : undefined
-            },
-            reasoning: "Direct reflex match from PRINCIPLES.json"
-          }
+          action: reflex.action, source: "reflex", confidence: 1.0, llmUsed: false,
+          cognitiveTrace: { strategy: "Principle", latencyEst: 5, memoryState: "read-only", source: "reflex", confidence: 1.0 },
+          packet: { from: "vadjanix://reflex", to: "user", action: reflex.action as any, payload: { message: reflex.response }, reasoning: "Principle reflex." }
         };
       }
     }
@@ -124,42 +105,18 @@ export class CognitiveRouter {
   private async findEpisodicMatch(input: string): Promise<RoutingResult | null> {
     const inputEmbedding = this.getMockEmbedding(input);
     const rows = this.db.prepare('SELECT input, output, embedding FROM episodes').all();
-    
     let bestMatch: any = null;
     let maxSim = 0;
-
     for (const row of rows as any[]) {
       const rowEmbedding = Array.from(new Float32Array(row.embedding.buffer));
       const sim = this.dotProduct(inputEmbedding, rowEmbedding);
-      if (sim > maxSim) {
-        maxSim = sim;
-        bestMatch = row;
-      }
+      if (sim > maxSim) { maxSim = sim; bestMatch = row; }
     }
-
     if (maxSim > 0.8) {
       return {
-        action: "query",
-        source: "episodic_replay",
-        confidence: maxSim,
-        llmUsed: false,
-        cognitiveTrace: {
-          strategy: `High-confidence episodic match (${maxSim.toFixed(2)})`,
-          latencyEst: 15,
-          memoryState: "replay_accessed",
-          source: "episodic_replay",
-          confidence: maxSim
-        },
-        packet: {
-          from: "vadjanix://episodic",
-          to: "user",
-          action: "query",
-          payload: {
-            message: bestMatch.output,
-            details: { parameters: { original_query: bestMatch.input } }
-          },
-          reasoning: `Episodic similarity match: ${maxSim.toFixed(2)}`
-        }
+        action: "query", source: "episodic_replay", confidence: maxSim, llmUsed: false,
+        cognitiveTrace: { strategy: "Episodic", latencyEst: 10, memoryState: "replay", source: "episodic_replay", confidence: maxSim },
+        packet: { from: "vadjanix://episodic", to: "user", action: "query", payload: { message: bestMatch.output }, reasoning: "Episodic match." }
       };
     }
     return null;
@@ -167,91 +124,19 @@ export class CognitiveRouter {
 
   private async causalInference(input: string): Promise<RoutingResult | null> {
     const rows = this.db.prepare("SELECT cause, effect, confidence FROM causal_edges").all();
-    
     let bestEdge: any = null;
-    const lowerInput = input.toLowerCase();
-
     for (const edge of rows as any[]) {
-      const regex = new RegExp(`\\b${edge.cause}\\b`, 'i');
-      if (regex.test(lowerInput)) {
-        if (!bestEdge || edge.confidence > bestEdge.confidence) {
-          bestEdge = edge;
-        }
+      if (new RegExp(`\\b${edge.cause}\\b`, 'i').test(input)) {
+        if (!bestEdge || edge.confidence > bestEdge.confidence) bestEdge = edge;
       }
     }
-    
     if (bestEdge && bestEdge.confidence >= 0.75) {
-        return {
-          action: "query",
-          source: "causal",
-          confidence: bestEdge.confidence,
-          llmUsed: false,
-          cognitiveTrace: {
-            strategy: `Causal edge detected: ${bestEdge.cause} -> ${bestEdge.effect}`,
-            latencyEst: 25,
-            memoryState: "inference_active",
-            source: "causal",
-            confidence: bestEdge.confidence
-          },
-          packet: {
-            from: "vadjanix://causal",
-            to: "user",
-            action: "query",
-            payload: {
-              message: `Inferring effect based on known cause: ${bestEdge.effect}`,
-              details: { parameters: { cause: bestEdge.cause } }
-            },
-            reasoning: `Known causal relationship identified with ${bestEdge.confidence} confidence.`
-          }
-        };
-      }
-    
+      return {
+        action: "query", source: "causal", confidence: bestEdge.confidence, llmUsed: false,
+        cognitiveTrace: { strategy: "Causal", latencyEst: 20, memoryState: "inference", source: "causal", confidence: bestEdge.confidence },
+        packet: { from: "vadjanix://causal", to: "user", action: "query", payload: { message: bestEdge.effect }, reasoning: "Causal inference." }
+      };
+    }
     return null;
-  }
-
-  public async processUserInput(input: string, sessionId: string = "default"): Promise<RoutingResult> {
-    const startTime = Date.now();
-
-    const reflexResult = await this.checkReflexes(input);
-    if (reflexResult) return reflexResult;
-
-    const causalResult = await this.causalInference(input);
-    if (causalResult) return causalResult;
-
-    const episodicResult = await this.findEpisodicMatch(input);
-    if (episodicResult) return episodicResult;
-
-    console.log("[ROUTER] Layers 1-3 confidence < 0.75. Triggering Sovereign LLM Fallback.");
-    
-    const adapter = await createAdapter({ provider: process.env.DEFAULT_LLM || 'gemini' });
-    const response = await adapter.reason(input, {
-      systemInstruction: "You are Vadjanix, a Sovereign AGI. Be concise."
-    });
-
-    const embedding = new Float32Array(this.getMockEmbedding(input));
-    this.db.prepare('INSERT INTO episodes (input, output, embedding) VALUES (?, ?, ?)').run(
-      input, response.text || "No response", Buffer.from(embedding.buffer)
-    );
-
-    return {
-      action: "query",
-      source: "llm_required",
-      confidence: response.confidence,
-      llmUsed: true,
-      cognitiveTrace: {
-        strategy: `LLM fallback triggered via ${adapter.name}`,
-        latencyEst: Date.now() - startTime,
-        memoryState: "new_episode_pending",
-        source: "llm_required",
-        confidence: response.confidence
-      },
-      packet: {
-        from: "vadjanix://brain",
-        to: "user",
-        action: "query",
-        payload: { message: response.text || "I'm processing that." },
-        reasoning: "Synthesized via Sovereign LLM fallback."
-      }
-    };
   }
 }
