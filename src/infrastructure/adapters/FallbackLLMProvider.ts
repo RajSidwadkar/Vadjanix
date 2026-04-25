@@ -3,26 +3,30 @@ import { ILLMProvider, LLMResponse } from './ILLMProvider.js';
 export class FallbackLLMProvider implements ILLMProvider {
   public name = 'fallback_router';
 
-  constructor(private primary: ILLMProvider, private secondary: ILLMProvider) {}
+  constructor(private providers: ILLMProvider[]) {}
 
   public async reason(prompt: string, context?: any): Promise<LLMResponse> {
-    const isPrimaryAvailable = await this.primary.isAvailable();
-    if (isPrimaryAvailable) {
-      try {
-        return await this.primary.reason(prompt, context);
-      } catch (error) {
-        console.warn(`\n[LLM ROUTER] Primary (${this.primary.name}) failed or offline. Routing to Secondary (${this.secondary.name})...\n`);
-        return await this.secondary.reason(prompt, context);
+    for (const provider of this.providers) {
+      const isAvailable = await provider.isAvailable();
+      if (isAvailable) {
+        try {
+          return await provider.reason(prompt, context);
+        } catch (error: any) {
+          console.warn(`\n[LLM ROUTER] Provider (${provider.name}) failed: ${error.message}. Cascading to next...\n`);
+        }
+      } else {
+        console.warn(`\n[LLM ROUTER] Provider (${provider.name}) is offline. Cascading to next...\n`);
       }
-    } else {
-      console.warn(`\n[LLM ROUTER] Primary (${this.primary.name}) failed or offline. Routing to Secondary (${this.secondary.name})...\n`);
-      return await this.secondary.reason(prompt, context);
     }
+    throw new Error('All LLM providers failed.');
   }
 
   public async isAvailable(): Promise<boolean> {
-    const primaryOk = await this.primary.isAvailable();
-    const secondaryOk = await this.secondary.isAvailable();
-    return primaryOk || secondaryOk;
+    for (const provider of this.providers) {
+      if (await provider.isAvailable()) {
+        return true;
+      }
+    }
+    return false;
   }
 }

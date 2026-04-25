@@ -1,44 +1,51 @@
 import { ILLMProvider, LLMResponse } from './ILLMProvider.js';
 
 export class OllamaAdapter implements ILLMProvider {
-  public name = 'ollama';
-  private endpoint = 'http://localhost:11434/api/generate';
+  public name = 'gemma';
+  private endpoint = 'http://127.0.0.1:11434/api/generate';
 
   async reason(prompt: string, context?: any): Promise<LLMResponse> {
-    const payload: any = {
-      model: 'phi3',
-      prompt: prompt,
-      stream: false,
-      options: context?.generationConfig || {}
-    };
+    try {
+      const payload: any = {
+        model: 'gemma:2b',
+        prompt: prompt,
+        stream: false,
+        options: context?.generationConfig || {}
+      };
 
-    if (context?.systemInstruction) {
-      payload.system = context.systemInstruction;
+      if (context?.systemInstruction) {
+        payload.system = context.systemInstruction;
+      }
+
+      console.log('[LLM - LOCAL] Transmitting prompt... waiting for CPU inference (This may take minutes on cold boot)...');
+      const response = await fetch(this.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`Ollama Error: ${response.statusText}`);
+      }
+
+      const data = await response.json() as any;
+      console.log('[LLM - LOCAL] Inference complete.');
+      return {
+        text: data.response,
+        confidence: 0.72
+      };
+    } catch (error: any) {
+      console.error('[LLM DIAGNOSTIC ERROR]', error);
+      throw error;
     }
-
-    const response = await fetch(this.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      throw new Error(`Ollama Error: ${response.statusText}`);
-    }
-
-    const data = await response.json() as any;
-    return {
-      text: data.response,
-      confidence: 0.72
-    };
   }
 
   async isAvailable(): Promise<boolean> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1000);
+    const timeout = setTimeout(() => controller.abort(), 300000);
 
     try {
-      const response = await fetch('http://localhost:11434', { signal: controller.signal });
+      const response = await fetch('http://127.0.0.1:11434', { signal: controller.signal });
       clearTimeout(timeout);
       return response.ok;
     } catch (error) {

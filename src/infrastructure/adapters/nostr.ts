@@ -49,6 +49,10 @@ export class NostrAdapter implements IAdapter {
     }
   }
 
+  public async stop(): Promise<void> {
+    this.pool.close(this.relays);
+  }
+
   public static async nostrSend(packet: IntentPacket): Promise<boolean> {
     const adapter = new NostrAdapter();
     return adapter.send(packet);

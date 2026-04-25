@@ -22,15 +22,18 @@ export class VadjanixAgent {
       
       console.log(`[BRAIN - OUTPUT] Generated: "${response}"\n`);
       return response;
-    } catch (error) {
-      console.error('[BRAIN - FATAL ERROR]', error);
+    } catch (error: any) {
+      console.error(`[BRAIN - FATAL ERROR] ${error.message || error}`);
       return "System Error: Brain offline.";
     }
   }
 
   public async handleRequest(prompt: string, sessionId: string = "default"): Promise<IntentPacket> {
     const guardrail = this.runDeterministicPreCheck(prompt);
-    if (guardrail) return guardrail;
+    if (guardrail) {
+      console.log(`[BRAIN - GUARDRAIL] Triggered: ${guardrail.reasoning}`);
+      return guardrail;
+    }
 
     const soulContext = await this.loadSoulContext();
     const retrieval = await this.memory.retrieve(prompt);
@@ -43,15 +46,22 @@ Rules:
 2. Reply directly in "payload.message".`;
 
     const context = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${memoryContext}\n\n[USER REQUEST]\n${prompt}`;
+    
+    console.log(`[BRAIN - ROUTING] Requesting LLM reasoning...`);
     const response = await this.llm.reason(context, {
       systemInstruction: systemPrompt,
       generationConfig: { temperature: 0, responseMimeType: "application/json" }
     });
 
-    const parsed = JSON.parse(response.text);
-    const packet = IntentPacketSchema.parse(parsed);
-    await this.logInteraction(prompt, packet);
-    return packet;
+    try {
+      const parsed = JSON.parse(response.text);
+      const packet = IntentPacketSchema.parse(parsed);
+      await this.logInteraction(prompt, packet);
+      return packet;
+    } catch (parseError: any) {
+      console.error(`[BRAIN - PARSE ERROR] Failed to parse LLM response: ${response.text}`);
+      throw new Error(`LLM output parse failure: ${parseError.message}`);
+    }
   }
 
   private runDeterministicPreCheck(prompt: string): IntentPacket | null {
@@ -88,6 +98,7 @@ Rules:
     const logEntry = `[${new Date().toISOString()}] User: ${prompt} | Vadjanix: ${packet.payload.message}`;
     const isAllowed = await MemoryWriteGate.gateMemoryWrite(logEntry, "user", 1.0);
     if (isAllowed) {
+      console.log(`[BRAIN - MEMORY] Writing episode to store...`);
       await this.memory.writeEpisode({
         channel: 'direct',
         counterparty_id: 'user',
@@ -97,6 +108,8 @@ Rules:
         emotional_valence: 0.5,
         importance: 0.5
       });
+    } else {
+      console.warn(`[BRAIN - MEMORY] Write blocked by Gate.`);
     }
   }
 }

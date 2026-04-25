@@ -30,9 +30,9 @@ export class DiscordAdapter implements IAdapter {
       const isMentioned = this.client.user ? message.mentions.has(this.client.user.id) : false;
       if (!isDM && !isMentioned) return;
 
-      console.log(`[DISCORD] Received message from ${message.author.id}: ${message.content}`);
-      console.log('[ADAPTER] Agent exists?', !!this.agent);
-      console.log('[ADAPTER] Routing to Brain...');
+      const botId = this.client.user?.id || '';
+      const mentionRegex = new RegExp(`<@!?${botId}>`, 'g');
+      const cleanContent = message.content.replace(mentionRegex, '').trim();
 
       try {
         if ('sendTyping' in message.channel) {
@@ -40,21 +40,32 @@ export class DiscordAdapter implements IAdapter {
         }
       } catch (e) {}
 
-      const botId = this.client.user?.id || '';
-      const mentionRegex = new RegExp(`<@!?${botId}>`, 'g');
-      const cleanContent = message.content.replace(mentionRegex, '').trim();
-
       try {
         const response = await this.agent.handleIncomingMessage('discord', message.author.id, cleanContent || "Hello");
         if (response) {
-          await message.reply(response);
+          console.log(`[OUTPUT - DISCORD] Attempting to send: "${response.substring(0, 50)}..."`);
+          try {
+            await message.reply(response);
+            console.log(`[OUTPUT - DISCORD] ✅ Message sent successfully.`);
+          } catch (err: any) {
+            console.error(`[OUTPUT - FATAL] Failed to send via API:`, err.message || err);
+          }
         }
       } catch (error: any) {
         console.error('[DISCORD ERROR]', error);
-        await message.reply("⚠️ Sorry, my Brain is having some trouble processing that.");
+        try {
+          await message.reply("⚠️ Sorry, my Brain is having some trouble processing that.");
+        } catch (err: any) {
+          console.error(`[OUTPUT - FATAL] Failed to send error message:`, err.message || err);
+        }
       }
     });
 
     await this.client.login(token);
+  }
+
+  public async stop(): Promise<void> {
+    console.log('[DISCORD] Disconnecting bot...');
+    await this.client.destroy();
   }
 }
