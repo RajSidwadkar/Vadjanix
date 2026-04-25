@@ -1,0 +1,4 @@
+{"ts":"2026-04-08T16:54:12.925Z","msg":"too old"}
+{"ts":"2026-04-10T14:54:12.926Z","level":"L1","msg":"recent 1"}
+{"ts":"2026-04-10T15:54:12.926Z","level":"L3","msg":"recent 2"}
+{"ts":"2026-04-10T16:54:12.932Z","type":"HEARTBEAT_ERROR","task":"15min_cycle","error":"CRITICAL EXCEPTION"}

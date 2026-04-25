@@ -1,42 +1,68 @@
-import express from 'express';
 import 'dotenv/config';
-import { initializeTelegramWebhook } from './adapters/telegram.js';
-import { initializeDiscordBot } from './adapters/discord.js';
-import { initializeWhatsApp } from './adapters/whatsapp.js';
-import { initializeSwarm } from './brain/SwarmManager.js';
+import { Bootstrapper } from './core/bootstrapper.js';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+async function main() {
+    console.log('\n=========================================');
+    console.log('🚀 VADJANIX SOVEREIGN MONOLITH IGNITING');
+    console.log('=========================================\n');
+    
+    try {
+        const { apiServer, discord, whatsapp, telegram } = await Bootstrapper.ignite();
+        
+        console.log('[SYSTEM] -> Starting API Server...');
+        const port = process.env.PORT || 3000;
+        const server = apiServer.listen(port, () => {
+            console.log('    ✅ API Server listening on port ' + port);
+        });
+        
+        console.log('[SYSTEM] -> Connecting Discord Adapter...');
+        await discord.initialize();
+        console.log('    ✅ Discord Bot Online');
 
-// 1. Middleware for JSON payloads
-app.use(express.json());
+        console.log('[SYSTEM] -> Connecting Telegram Adapter...');
+        await telegram.initialize();
+        console.log('    ✅ Telegram Webhook Active');
 
-// 2. Health check route
-app.get('/', (req, res) => {
-  res.send('Vadjanix Node is Online');
-});
+        console.log('[SYSTEM] -> Cooling down event loop (5s) before WhatsApp injection...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        console.log('[SYSTEM] -> Connecting WhatsApp Adapter...');
+        await whatsapp.initialize();
+        console.log('    ✅ WhatsApp Client Online');
+        
+        console.log('\n=========================================');
+        console.log('🟢 STATUS: AGI ONLINE. EVENT LOOP LOCKED.');
+        console.log('=========================================\n');
 
-async function boot() {
-  console.log("[VADJANIX] Starting boot sequence...");
+        async function shutdown() {
+            console.log('\n[SYSTEM] -> Shutdown signal received. Powering down...');
+            
+            try {
+                await telegram.stop();
+            } catch (e) {}
+            
+            try {
+                await whatsapp.stop();
+            } catch (e) {}
+            
+            try {
+                await discord.stop();
+            } catch (e) {}
 
-  // 0. Initialize the Multi-Agent Swarm (Trains the local NLP orchestrator)
-  await initializeSwarm();
+            server.close();
+            console.log('[SYSTEM] -> All systems offline. Goodbye.\n');
+            process.exit(0);
+        }
 
-  // 3. Mount Adapter Webhooks
-  initializeTelegramWebhook(app);
+        process.on('SIGINT', shutdown);
+        process.on('SIGTERM', shutdown);
+        process.on('SIGUSR2', shutdown);
 
-  // 4. Initialize Independent Bot Clients
-  await initializeDiscordBot();
-  await initializeWhatsApp();
-
-  // 5. Start the Global Router
-  app.listen(PORT, () => {
-    console.log(`[VADJANIX] Boot sequence complete.`);
-    console.log(`[VADJANIX] Express server listening on port ${PORT}`);
-  });
+    } catch (error) {
+        console.error('[FATAL ERROR] System Ignition Failed:');
+        console.error(error);
+        process.exit(1);
+    }
 }
 
-boot().catch(err => {
-  console.error("[VADJANIX] FATAL BOOT ERROR:", err);
-  process.exit(1);
-});
+main();
