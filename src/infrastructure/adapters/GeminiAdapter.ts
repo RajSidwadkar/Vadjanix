@@ -9,7 +9,8 @@ export class GeminiAdapter implements ILLMProvider {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY;
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY or GEMINI_KEY");
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${apiKey}`;
+    // Use v1 for more stability if v1beta is failing
+    const url = `https://generativelanguage.googleapis.com/v1/models/${this.model}:generateContent?key=${apiKey}`;
     
     const payload: any = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }]

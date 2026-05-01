@@ -43,8 +43,10 @@ export class WhatsAppAdapter implements IAdapter {
           console.log('[WHATSAPP] Client is ready!');
         });
 
-        this.client.on('message_create', async (message: any) => {
-          if (!message.fromMe || message.from !== message.to) return;
+        this.client.on('message', async (message: any) => {
+          console.log('RAW WHATSAPP EVENT:', JSON.stringify({ from: message.from, to: message.to, body: message.body, fromMe: message.fromMe, type: message.type }, null, 2));
+          // if (message.fromMe) return;
+          // if (message.isGroupMsg) return;
           if (!message.body) return;
 
           try {
@@ -67,7 +69,7 @@ export class WhatsAppAdapter implements IAdapter {
             console.error('[WHATSAPP ERROR]', error);
             if (!this.errorCooldowns.has(message.from)) {
               try {
-                await message.reply("System Error: Brain offline");
+                await message.reply("Whoops! My neural pathways are a bit tangled up right now. 🧠🔧 Give me a little time to recalibrate, and we'll pick this up later!");
                 this.errorCooldowns.add(message.from);
                 setTimeout(() => this.errorCooldowns.delete(message.from), 300000);
               } catch (err: any) {
@@ -75,6 +77,10 @@ export class WhatsAppAdapter implements IAdapter {
               }
             }
           }
+        });
+
+        this.client.on('message_create', async (message: any) => {
+          if (message.fromMe) console.log('RAW WHATSAPP EVENT (FROM ME):', message.body);
         });
 
         await this.client.initialize();

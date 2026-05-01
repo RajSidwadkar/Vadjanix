@@ -57,6 +57,7 @@ export class TelegramAdapter implements IAdapter {
                 }
               } catch (err: any) {
                 console.error('[TELEGRAM] Brain routing failed:', err.message);
+                await this.sendMessage(chatId, "Whoops! My neural pathways are a bit tangled up right now. 🧠🔧 Give me a little time to recalibrate, and we'll pick this up later!", botToken);
               }
             }
           }

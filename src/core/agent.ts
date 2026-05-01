@@ -6,6 +6,8 @@ import { IntentPacket, IntentPacketSchema } from '../router/schema.js';
 import { MemoryWriteGate } from '../modules/security/memory_write_gate.js';
 
 export class VadjanixAgent {
+  private kvCache: Map<string, any> = new Map();
+
   constructor(
     private memory: VadjanixMemory,
     private llm: ILLMProvider
@@ -24,7 +26,7 @@ export class VadjanixAgent {
       return response;
     } catch (error: any) {
       console.error(`[BRAIN - FATAL ERROR] ${error.message || error}`);
-      return "System Error: Brain offline.";
+      return "Whoops! My neural pathways are a bit tangled up right now. 🧠🔧 Give me a little time to recalibrate, and we'll pick this up later!";
     }
   }
 
@@ -48,10 +50,17 @@ Rules:
     const context = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${memoryContext}\n\n[USER REQUEST]\n${prompt}`;
     
     console.log(`[BRAIN - ROUTING] Requesting LLM reasoning...`);
+    const sessionKvCache = this.kvCache.get(sessionId);
+    
     const response = await this.llm.reason(context, {
       systemInstruction: systemPrompt,
-      generationConfig: { temperature: 0, responseMimeType: "application/json" }
+      generationConfig: { temperature: 0, responseMimeType: "application/json" },
+      kv_cache: sessionKvCache
     });
+
+    if (response.context) {
+      this.kvCache.set(sessionId, response.context);
+    }
 
     try {
       const parsed = JSON.parse(response.text);
