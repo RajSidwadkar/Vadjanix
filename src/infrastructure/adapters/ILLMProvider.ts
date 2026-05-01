@@ -1,6 +1,7 @@
 export interface LLMResponse {
   text: string;
   confidence: number;
+  context?: any;
 }
 
 export interface ILLMProvider {

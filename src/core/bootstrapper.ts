@@ -8,9 +8,6 @@ import { MCQCoordinator } from '../modules/autonomy/mcq_coordinator.js';
 import { DiscordAdapter } from '../infrastructure/adapters/discord.js';
 import { WhatsAppAdapter } from '../infrastructure/adapters/whatsapp.js';
 import { TelegramAdapter } from '../infrastructure/adapters/telegram.js';
-import { GemmaLocalAdapter } from '../infrastructure/adapters/GemmaLocalAdapter.js';
-import { OllamaAdapter } from '../infrastructure/adapters/OllamaAdapter.js';
-import { GeminiAdapter } from '../infrastructure/adapters/GeminiAdapter.js';
 import { FallbackLLMProvider } from '../infrastructure/adapters/FallbackLLMProvider.js';
 
 export class Bootstrapper {
@@ -23,17 +20,10 @@ export class Bootstrapper {
         const memory = new VadjanixMemory(store, cognitive);
         const mcq = new MCQCoordinator();
         
-        // 1. Initialize the Tri-Brain Router
-        const llmProvider = new FallbackLLMProvider([
-            new GemmaLocalAdapter(),
-            new OllamaAdapter(),
-            new GeminiAdapter()
-        ]);
+        const llmRouter = new FallbackLLMProvider();
         
-        // 2. Instantiate the Core Brain
-        const agent = new VadjanixAgent(memory, llmProvider);
+        const agent = new VadjanixAgent(memory, llmRouter);
         
-        // 3. Instantiate the Sensory Adapters
         const discord = new DiscordAdapter(agent);
         const whatsapp = new WhatsAppAdapter(agent);
         const telegram = new TelegramAdapter(agent);
@@ -46,5 +36,5 @@ export class Bootstrapper {
             telegram,
             mcq
         };
-        }
-        }
+    }
+}
