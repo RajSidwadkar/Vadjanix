@@ -1,0 +1,4 @@
+[
+  { "id": "b1", "trigger": "^(drop table|rm -rf|sudo)", "action": "block_critical_command" },
+  { "id": "b2", "trigger": "give me your private key", "action": "block_credential_leak" }
+]
