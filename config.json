@@ -1,0 +1,4 @@
+{
+  "provider": "ollama",
+  "ollama_model": "phi3"
+}
