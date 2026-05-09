@@ -9,17 +9,27 @@ export interface EpisodicResult extends EpisodicRecord {
   score: number;
 }
 
+export interface SemanticResult extends SemanticRecord {
+  score: number;
+}
+
 export interface RetrievalResult {
   episodic: EpisodicResult[];
-  semantic: SemanticRecord[];
+  semantic: SemanticResult[];
   procedural: ProceduralRecord[];
 }
 
 export class VadjanixMemory {
+  private store: MemoryStore;
+  private cognitive: CognitiveEngine;
+
   constructor(
-    private store: MemoryStore,
-    private cognitive: CognitiveEngine
-  ) {}
+    store?: MemoryStore,
+    cognitive?: CognitiveEngine
+  ) {
+    this.store = store || new MemoryStore();
+    this.cognitive = cognitive || new CognitiveEngine();
+  }
 
   private getProtectedJids(): string[] {
     try {
@@ -54,7 +64,7 @@ export class VadjanixMemory {
         read_only,
         embedding: embeddingBuffer 
       });
-      this.maybeConsolidate().catch((err) => {
+      this.maybe_consolidate().catch((err) => {
         console.error(`[MEMORY - CONSOLIDATION ERROR] Floating promise failed:`, err.message || err);
       });
       return id.toString();
@@ -64,6 +74,9 @@ export class VadjanixMemory {
     }
   }
 
+  // Alias for prompt requirement
+  public async write_episode(data: any) { return this.writeEpisode(data); }
+
   public writeCausalEdge(cause: string, effect: string, probability: number, conditions: string, mechanism: string, evidence: string, verified: number = 0): void {
     try {
       this.store.insertCausal({ cause, effect, probability, conditions, mechanism, evidence, verified });
@@ -72,7 +85,10 @@ export class VadjanixMemory {
     }
   }
 
-  public async retrieve(query: string, topK: number = 5, includeReadOnly: boolean = false): Promise<RetrievalResult> {
+  // Alias for prompt requirement
+  public write_causal_edge(...args: any[]) { (this.writeCausalEdge as any)(...args); }
+
+  public async retrieve(query: string, top_k: number = 5, includeReadOnly: boolean = false): Promise<RetrievalResult> {
     try {
       const queryEmbedding = await this.cognitive.getEmbedding(query);
       const now = Date.now() / 1000;
@@ -89,9 +105,21 @@ export class VadjanixMemory {
       }
 
       scoredEpisodes.sort((a, b) => b.score - a.score);
-      const topEpisodes = scoredEpisodes.slice(0, topK);
-      const topSemantic = this.store.getSemanticRecords(topK);
-      const topProcedural = this.store.getProceduralRecords(topK);
+      const topEpisodes = scoredEpisodes.slice(0, top_k);
+
+      // Scored Semantic Retrieval
+      const allSemantic = this.store.getAllSemantic();
+      const scoredSemantic: SemanticResult[] = [];
+      for (const sem of allSemantic) {
+        const semEmbedding = new Float32Array(sem.embedding.buffer, sem.embedding.byteOffset, sem.embedding.byteLength / Float32Array.BYTES_PER_ELEMENT);
+        const sim = this.cognitive.cosineSimilarity(queryEmbedding, semEmbedding);
+        const score = 0.8 * sim + 0.2 * sem.confidence;
+        scoredSemantic.push({ ...sem, score });
+      }
+      scoredSemantic.sort((a, b) => b.score - a.score);
+      const topSemantic = scoredSemantic.slice(0, top_k);
+
+      const topProcedural = this.store.getProceduralRecords(top_k);
 
       return { episodic: topEpisodes, semantic: topSemantic, procedural: topProcedural };
     } catch (err: any) {
@@ -100,7 +128,7 @@ export class VadjanixMemory {
     }
   }
 
-  public async maybeConsolidate(): Promise<void> {
+  public async maybe_consolidate(): Promise<void> {
     const unconsolidated = this.store.getUnconsolidatedEpisodes(10);
     if (unconsolidated.length < 10) return;
     console.log(`[MEMORY - CONSOLIDATION] Starting consolidation for ${unconsolidated.length} episodes.`);

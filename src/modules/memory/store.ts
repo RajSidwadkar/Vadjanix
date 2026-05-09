@@ -60,8 +60,35 @@ export class MemoryStore {
     return this.db.prepare('SELECT * FROM semantic ORDER BY confidence DESC LIMIT ?').all(limit) as SemanticRecord[];
   }
 
+  public getAllSemantic(): SemanticRecord[] {
+    return this.db.prepare('SELECT * FROM semantic').all() as SemanticRecord[];
+  }
+
   public getProceduralRecords(limit: number = 5): ProceduralRecord[] {
     return this.db.prepare('SELECT * FROM procedural ORDER BY success_rate DESC LIMIT ?').all(limit) as ProceduralRecord[];
+  }
+
+  public insertProcedural(data: any): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO procedural (condition_text, action_text, source, success_rate, version)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+    stmt.run(data.condition_text, data.action_text, data.source, data.success_rate || 0.5, data.version || 1);
+  }
+
+  public insertAssociative(data: any): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO associative (entity_id, alias, trust_score, interaction_count, preferred_style, known_preferences)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(entity_id) DO UPDATE SET
+        alias=excluded.alias,
+        trust_score=excluded.trust_score,
+        interaction_count=associative.interaction_count + 1,
+        preferred_style=excluded.preferred_style,
+        known_preferences=excluded.known_preferences,
+        last_seen=CURRENT_TIMESTAMP
+    `);
+    stmt.run(data.entity_id, data.alias, data.trust_score, data.interaction_count || 1, data.preferred_style, data.known_preferences);
   }
 
   public getUnconsolidatedEpisodes(limit: number = 10): EpisodicRecord[] {
