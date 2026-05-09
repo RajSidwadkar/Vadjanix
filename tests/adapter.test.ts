@@ -1,23 +1,42 @@
-import { describe, it, expect, vi } from 'vitest';
+import assert from 'node:assert';
 import { createAdapter } from '../src/core/adapter_factory.js';
 import { OllamaAdapter } from '../src/adapters/ollama_adapter.js';
 
-describe('Adapter Factory', () => {
-  it('createAdapter({provider:"ollama"}) returns OllamaAdapter', () => {
+async function runTest(name: string, fn: () => Promise<void> | void) {
+  try {
+    await fn();
+    console.log(`[PASS] ${name}`);
+  } catch (error) {
+    console.error(`[FAIL] ${name}`);
+    console.error(error);
+    process.exit(1);
+  }
+}
+
+async function main() {
+  console.log('--- STARTING ADAPTER FACTORY TESTS ---');
+
+  await runTest('createAdapter({provider:"ollama"}) returns OllamaAdapter', () => {
     const adapter = createAdapter({ provider: 'ollama' });
-    expect(adapter).toBeInstanceOf(OllamaAdapter);
+    assert.ok(adapter instanceof OllamaAdapter);
   });
 
-  it('isAvailable() returns boolean and does not throw when Ollama is offline', async () => {
-    // Mock fetch to simulate offline state
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Connection refused')));
+  await runTest('isAvailable() returns boolean and does not throw when Ollama is offline', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = async () => { throw new Error('Connection refused'); };
     
-    const adapter = new OllamaAdapter();
-    const available = await adapter.isAvailable();
-    
-    expect(typeof available).toBe('boolean');
-    expect(available).toBe(false);
-    
-    vi.unstubAllGlobals();
+    try {
+      const adapter = new OllamaAdapter();
+      const available = await adapter.isAvailable();
+      
+      assert.strictEqual(typeof available, 'boolean');
+      assert.strictEqual(available, false);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
-});
+
+  console.log('ADAPTER STATUS: OPERATIONAL.\n');
+}
+
+main();

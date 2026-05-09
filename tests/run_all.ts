@@ -23,11 +23,21 @@ function findTestFiles(dir: string): string[] {
 }
 
 function run() {
+    const rootDir = __dirname;
     const unitDir = path.join(__dirname, 'unit');
     const integrationDir = path.join(__dirname, 'integration');
-    const testFiles = [...findTestFiles(unitDir), ...findTestFiles(integrationDir)];
     
-    for (const file of testFiles) {
+    // Find all files and ensure unique set
+    const allFiles = [
+        ...findTestFiles(rootDir),
+        ...findTestFiles(unitDir),
+        ...findTestFiles(integrationDir)
+    ];
+    
+    const uniqueFiles = Array.from(new Set(allFiles))
+        .filter(f => f !== path.resolve(__filename));
+    
+    for (const file of uniqueFiles) {
         const result = spawnSync('npx', ['tsx', file], { stdio: 'inherit', shell: true });
         if (result.status && result.status > 0) {
             console.error('Test execution failed for: ' + file);

@@ -8,7 +8,7 @@ import { MCQCoordinator } from '../modules/autonomy/mcq_coordinator.js';
 import { DiscordAdapter } from '../infrastructure/adapters/discord.js';
 import { WhatsAppAdapter } from '../infrastructure/adapters/whatsapp.js';
 import { TelegramAdapter } from '../infrastructure/adapters/telegram.js';
-import { FallbackLLMProvider } from '../infrastructure/adapters/FallbackLLMProvider.js';
+import { createAdapter } from '../infrastructure/adapters/AdapterFactory.js';
 
 export class Bootstrapper {
     public static async ignite() {
@@ -20,7 +20,11 @@ export class Bootstrapper {
         const memory = new VadjanixMemory(store, cognitive);
         const mcq = new MCQCoordinator();
         
-        const llmRouter = new FallbackLLMProvider();
+        const llmRouter = await createAdapter({ provider: process.env.DEFAULT_LLM || 'slm' });
+        if (llmRouter.warmup) {
+            // Non-blocking warmup
+            llmRouter.warmup().catch(err => console.error('[SYSTEM - WARMUP ERROR]', err));
+        }
         
         const agent = new VadjanixAgent(memory, llmRouter);
         

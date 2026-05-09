@@ -1,60 +1,47 @@
 import { ILLMProvider, LLMResponse } from './ILLMProvider.js';
-import { OllamaAdapter } from './OllamaAdapter.js';
-import { GeminiAdapter } from './GeminiAdapter.js';
 
 export class FallbackLLMProvider implements ILLMProvider {
-  public name = 'semantic_router';
+  public name = 'fallback-reliable-provider';
+  private providers: ILLMProvider[];
 
-  private qwenCoder = new OllamaAdapter('qwen2.5-coder:1.5b');
-  private qwenBase = new OllamaAdapter('qwen2.5:1.5b');
-  private llama1b = new OllamaAdapter('llama3.2:1b');
-  private llama8b = new OllamaAdapter('llama3:latest');
-  private gemma3 = new OllamaAdapter('gemma3:4b');
-  private gemini = new GeminiAdapter();
-
-  constructor() {}
-
-  private determineCascade(prompt: string): ILLMProvider[] {
-    const normalized = prompt.toLowerCase().trim();
-    const trivialRegex = /^(hi+|hello+|hey+|ping|test|yo|sup)$/i;
-    const complexKeywords = ['code', 'explain', 'analyze', 'solve', 'bug'];
-
-    if (trivialRegex.test(normalized)) {
-      return [this.qwenCoder, this.gemini];
-    }
-
-    if (normalized.length > 300 || complexKeywords.some(key => normalized.includes(key))) {
-      return [this.gemma3, this.llama8b, this.gemini];
-    }
-
-    return [this.qwenCoder, this.qwenBase, this.llama1b, this.gemma3, this.gemini];
+  constructor(providers: ILLMProvider[]) {
+    this.providers = providers;
   }
 
-  public async reason(prompt: string, context?: any): Promise<LLMResponse> {
-    const cascade = this.determineCascade(prompt);
-    console.log(`[DECIDER] 🧠 Prompt classified. Generated cascade path: ${cascade.map(p => p.name).join(' -> ')}`);
+  async reason(prompt: string, context?: any): Promise<LLMResponse> {
+    let lastError: Error | null = null;
 
-    for (const provider of cascade) {
-      console.log(`[ORCHESTRATOR] 🔄 Attempting to engage: ${provider.name}`);
+    for (const provider of this.providers) {
       try {
-        const result = await provider.reason(prompt, context);
-        console.log(`[ORCHESTRATOR] ✅ Success utilizing: ${provider.name}`);
-        return result;
+        console.log(`[LLM - FALLBACK] 🔄 Attempting with provider: ${provider.name}`);
+        if (await provider.isAvailable()) {
+          const response = await provider.reason(prompt, context);
+          return response;
+        } else {
+          console.warn(`[LLM - FALLBACK] ⚠️ Provider ${provider.name} is not available.`);
+        }
       } catch (error: any) {
-        console.warn(`[ORCHESTRATOR] ⚠️ ${provider.name} failed: ${error.message}. Cascading to next...`);
-        continue;
+        console.error(`[LLM - FALLBACK] ❌ Provider ${provider.name} failed:`, error.message);
+        lastError = error;
       }
     }
-    throw new Error("All LLM providers are offline.");
+
+    throw new Error(`[LLM - FATAL] All providers failed. Last error: ${lastError?.message}`);
   }
 
-  public async isAvailable(): Promise<boolean> {
-    const providers = [this.qwenCoder, this.qwenBase, this.llama1b, this.gemma3, this.llama8b, this.gemini];
-    for (const provider of providers) {
-      if (await provider.isAvailable()) {
-        return true;
-      }
+  async isAvailable(): Promise<boolean> {
+    for (const provider of this.providers) {
+      if (await provider.isAvailable()) return true;
     }
     return false;
+  }
+
+  async warmup(): Promise<void> {
+    console.log(`[LLM - FALLBACK] 🌡️ Starting parallel warmup for all local providers...`);
+    const localProviders = this.providers.filter(p => p.name.includes('ollama') || p.name.includes('gemma'));
+    
+    // Warming up in parallel to save time
+    await Promise.all(localProviders.map(p => p.warmup?.()));
+    console.log(`[LLM - FALLBACK] 🔥 Warmup sequence complete.`);
   }
 }
