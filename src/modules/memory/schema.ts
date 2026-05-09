@@ -4,12 +4,13 @@ export interface EpisodicRecord {
   channel: string;
   counterparty_id: string;
   raw_exchange: string;
-  agent_action: string;
+  agent_action: string | null;
   outcome: string;
   emotional_valence: number;
   importance: number;
   consolidated: number;
   embedding: Buffer;
+  read_only: number;
 }
 
 export interface SemanticRecord {
@@ -49,7 +50,7 @@ export interface CausalGraphRecord {
   probability: number;
   conditions: string;
   mechanism: string;
-  evidence_episodes: string;
+  evidence: string;
   verified: number;
 }
 
@@ -60,12 +61,13 @@ export const EPISODIC_SCHEMA = `
     channel TEXT NOT NULL,
     counterparty_id TEXT NOT NULL,
     raw_exchange TEXT NOT NULL,
-    agent_action TEXT NOT NULL,
+    agent_action TEXT,
     outcome TEXT NOT NULL,
     emotional_valence REAL NOT NULL,
     importance REAL NOT NULL,
     consolidated INTEGER DEFAULT 0,
-    embedding BLOB NOT NULL
+    embedding BLOB NOT NULL,
+    read_only INTEGER DEFAULT 0
   );
 `;
 
@@ -88,7 +90,7 @@ export const PROCEDURAL_SCHEMA = `
     condition_text TEXT NOT NULL,
     action_text TEXT NOT NULL,
     source TEXT NOT NULL,
-    success_rate REAL NOT NULL,
+    success_rate REAL DEFAULT 0.5,
     version INTEGER DEFAULT 1
   );
 `;
@@ -113,7 +115,7 @@ export const CAUSAL_GRAPH_SCHEMA = `
     probability REAL NOT NULL,
     conditions TEXT NOT NULL,
     mechanism TEXT NOT NULL,
-    evidence_episodes TEXT NOT NULL,
+    evidence TEXT NOT NULL,
     verified INTEGER DEFAULT 0
   );
 `;

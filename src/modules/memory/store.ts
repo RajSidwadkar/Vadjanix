@@ -24,8 +24,8 @@ export class MemoryStore {
 
   public insertEpisodic(data: any): string | number {
     const stmt = this.db.prepare(`
-      INSERT INTO episodic (channel, counterparty_id, raw_exchange, agent_action, outcome, emotional_valence, importance, embedding)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO episodic (channel, counterparty_id, raw_exchange, agent_action, outcome, emotional_valence, importance, embedding, read_only)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       data.channel,
@@ -35,20 +35,24 @@ export class MemoryStore {
       data.outcome,
       data.emotional_valence,
       data.importance,
-      data.embedding
+      data.embedding,
+      data.read_only || 0
     );
     return result.lastInsertRowid.toString();
   }
 
   public insertCausal(data: any): void {
     const stmt = this.db.prepare(`
-      INSERT INTO causal_graph (cause, effect, probability, conditions, mechanism, evidence_episodes, verified)
+      INSERT INTO causal_graph (cause, effect, probability, conditions, mechanism, evidence, verified)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(data.cause, data.effect, data.probability, data.conditions, data.mechanism, data.evidence_episodes, data.verified);
+    stmt.run(data.cause, data.effect, data.probability, data.conditions, data.mechanism, data.evidence, data.verified);
   }
 
-  public getAllEpisodes(limit: number = 1000): EpisodicRecord[] {
+  public getAllEpisodes(limit: number = 1000, readOnlyFilter: number | null = null): EpisodicRecord[] {
+    if (readOnlyFilter !== null) {
+      return this.db.prepare('SELECT * FROM episodic WHERE read_only = ? ORDER BY timestamp DESC LIMIT ?').all(readOnlyFilter, limit) as EpisodicRecord[];
+    }
     return this.db.prepare('SELECT * FROM episodic ORDER BY timestamp DESC LIMIT ?').all(limit) as EpisodicRecord[];
   }
 
