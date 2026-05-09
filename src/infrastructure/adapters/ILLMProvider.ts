@@ -6,6 +6,8 @@ export interface LLMResponse {
 
 export interface ILLMProvider {
   name: string;
-  reason(prompt: string, context?: object): Promise<LLMResponse>;
+  reason(prompt: string, context?: any): Promise<LLMResponse>;
   isAvailable(): Promise<boolean>;
+  warmup?(): Promise<void>;
 }
+

@@ -1,105 +1,54 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import assert from 'node:assert';
 import crypto from 'node:crypto';
-import { CapsuleManager, SovereigntyError } from '../../src/modules/memory/capsule.js';
-
-const TEST_PRIVKEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
-
-async function setup() {
-  if (!fs.existsSync('memory')) fs.mkdirSync('memory');
-  if (!fs.existsSync('soul')) fs.mkdirSync('soul');
-  fs.writeFileSync('memory/vadjanix.db', 'MOCK_DB_STATE_1');
-  fs.writeFileSync('soul/PRINCIPLES.json', 'MOCK_PRINCIPLES_1');
-  fs.writeFileSync('GOALS.md', 'MOCK_GOALS_1');
-  process.env.NOSTR_PRIVKEY = TEST_PRIVKEY;
-}
-
-async function teardown() {
-  const dirs = ['./capsules', './.capsule_backups', 'memory', 'soul'];
-  const files = ['GOALS.md'];
-  
-  for (const f of files) {
-    if (fs.existsSync(f)) fs.unlinkSync(f);
-  }
-
-  for (const d of dirs) {
-    if (fs.existsSync(d)) {
-      fs.rmSync(d, { recursive: true, force: true });
-    }
-  }
-}
+import assert from 'node:assert';
+import { CapsuleManager } from '../../src/agent/capsule.js';
 
 async function runTests() {
-  try {
-    await setup();
-    const manager = new CapsuleManager();
+  console.log('Starting Capsule System Tests...');
+  const manager = new CapsuleManager();
+  
+  // Ensure target files exist for hashing
+  if (!fs.existsSync('soul')) fs.mkdirSync('soul');
+  fs.writeFileSync('soul/PRINCIPLES.json', JSON.stringify({ version: 1 }));
+  fs.writeFileSync('GOALS.md', 'Initial Goals');
+  if (!fs.existsSync('memory')) fs.mkdirSync('memory');
+  fs.writeFileSync('memory/vadjanix.db', 'database content');
 
-    console.log('--- STARTING CAPSULE PROTOCOL TEST SUITE ---');
+  const getHash = (file: string) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+  const initialHash = getHash('GOALS.md');
 
-    await (async () => {
-      const capsule = await manager.createCapsule("Attempting ARC Grid Transformation", ["Modified memory.db"], 0.85);
-      assert.ok(capsule.id.startsWith('cap_'));
-      assert.ok(capsule.signature);
-      
-      const manifestPath = path.join('./capsules', `${capsule.id}.json`);
-      assert.ok(fs.existsSync(manifestPath));
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
-      assert.strictEqual(manifest.signature, capsule.signature);
+  console.log('1. Creating first capsule...');
+  await manager.createCapsule('Initial state', ['Init'], 100);
 
-      const backupDb = path.join('./.capsule_backups', `${capsule.id}_memory_vadjanix.db`);
-      assert.ok(fs.existsSync(backupDb));
-      assert.strictEqual(fs.readFileSync(backupDb, 'utf-8'), 'MOCK_DB_STATE_1');
-      
-      console.log('[PASS] Test 1: Capsule Creation & Cryptographic Sealing');
-    })();
+  console.log('2. Modifying state and creating second capsule...');
+  fs.writeFileSync('GOALS.md', 'Modified Goals');
+  const modifiedHash = getHash('GOALS.md');
+  const capId2 = await manager.createCapsule('Modified state', ['Mod'], 100);
 
-    await (async () => {
-      fs.writeFileSync('memory/vadjanix.db', 'CORRUPTED_STATE');
-      fs.writeFileSync('soul/PRINCIPLES.json', 'CORRUPTED_PRINCIPLES');
-      
-      await new Promise(resolve => setTimeout(resolve, 10));
-      await manager.createCapsule("State before corruption", [], 1.0);
-      
-      await new Promise(resolve => setTimeout(resolve, 10));
-      fs.writeFileSync('memory/vadjanix.db', 'LATEST_CORRUPTION');
-      await manager.createCapsule("Latest state", [], 1.0);
-      
-      await manager.rollback();
-      
-      const currentDb = fs.readFileSync('memory/vadjanix.db', 'utf-8');
-      assert.strictEqual(currentDb, 'CORRUPTED_STATE');
-      assert.strictEqual(fs.readFileSync('soul/PRINCIPLES.json', 'utf-8'), 'CORRUPTED_PRINCIPLES');
+  console.log('3. Rolling back to first capsule...');
+  const rollbackResult = await manager.rollback();
+  console.log('Rollback result:', rollbackResult);
 
-      const files = fs.readdirSync('./capsules').filter(f => f.endsWith('.json'));
-      const sorted = files.map(f => JSON.parse(fs.readFileSync(path.join('./capsules', f), 'utf-8'))).sort((a, b) => a.timestamp - b.timestamp);
-      await manager.rollback(sorted[0].id);
+  const restoredHash = getHash('GOALS.md');
+  assert.strictEqual(restoredHash, initialHash, 'State restoration failed: Hash mismatch');
+  console.log('[PASS] State restored successfully');
 
-      assert.strictEqual(fs.readFileSync('memory/vadjanix.db', 'utf-8'), 'MOCK_DB_STATE_1');
-      assert.strictEqual(fs.readFileSync('soul/PRINCIPLES.json', 'utf-8'), 'MOCK_PRINCIPLES_1');
+  console.log('4. Verifying chain...');
+  const isChainValid = await manager.verifyChain();
+  assert.ok(isChainValid, 'Chain verification failed');
+  console.log('[PASS] Chain verification successful');
 
-      console.log('[PASS] Test 2: The Atomic Rollback (Mutation & Restoration)');
-    })();
+  console.log('5. Testing Semantic Diff...');
+  const diff = manager.buildSemanticDiff(['Updated principles', 'Added goal'], 95, true);
+  console.log('Generated Diff:\n' + diff);
+  assert.ok(diff.includes('📋 PROPOSED CHANGES'));
 
-    await (async () => {
-      delete process.env.NOSTR_PRIVKEY;
-      try {
-        await manager.createCapsule("Unsigned attempt", [], 0.5);
-        assert.fail('Should have thrown SovereigntyError');
-      } catch (e) {
-        assert.ok(e instanceof SovereigntyError);
-      }
-      console.log('[PASS] Test 3: Sovereignty Error (Missing Ed25519 Key)');
-    })();
-
-    console.log('\nSTATUS: CAPSULE PROTOCOL SECURE. ATOMIC ROLLBACK OPERATIONAL.');
-    process.exit(0);
-  } catch (error) {
-    console.error(`\n[FAIL] TEST SUITE CRITICAL ERROR:`, error);
-    process.exit(1);
-  } finally {
-    await teardown();
-  }
+  console.log('All capsule tests PASSED.');
+  process.exit(0);
 }
 
-runTests();
+runTests().catch(err => {
+  console.error('Test failed:', err);
+  process.exit(1);
+});

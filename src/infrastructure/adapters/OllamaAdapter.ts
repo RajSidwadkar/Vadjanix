@@ -86,4 +86,24 @@ export class OllamaAdapter implements ILLMProvider {
       return false;
     }
   }
+
+  async warmup(): Promise<void> {
+    console.log(`[LLM - OLLAMA] 🌡️ Warming up model: ${this.modelName}...`);
+    try {
+      // Sending a minimal prompt with keep_alive: -1 to load model into RAM
+      await fetch(this.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.modelName,
+          prompt: "hi",
+          stream: false,
+          keep_alive: -1
+        })
+      });
+      console.log(`[LLM - OLLAMA] 🔥 Model ${this.modelName} is now warm and active in RAM.`);
+    } catch (error: any) {
+      console.warn(`[LLM - OLLAMA] ⚠️ Warmup failed for ${this.modelName}:`, error.message);
+    }
+  }
 }

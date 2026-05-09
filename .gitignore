@@ -16,7 +16,6 @@ models/
 # OS / IDE
 .DS_Store
 .vscode/
-*.log
 
 #Data
 memory/vadjanix.db
@@ -24,3 +23,12 @@ memory/*.log
 memory/*.md
 .wwebjs_auth/
 .wwebjs_cache/
+
+# Ignore Vadjanix capsule data
+capsules/
+.capsule_backups
+
+# Ignore log files
+*.log
+swarm_log.md
+audit.log
