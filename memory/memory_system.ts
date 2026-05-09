@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { MemoryStore } from './store.js';
-import { CognitiveEngine } from './engine.js';
-import { EpisodicRecord, SemanticRecord, ProceduralRecord } from './schema.js';
-import { createAdapter } from '../../infrastructure/adapters/AdapterFactory.js';
+import { MemoryStore } from '../src/modules/memory/store';
+import { CognitiveEngine } from '../src/modules/memory/engine';
+import { EpisodicRecord, SemanticRecord, ProceduralRecord } from '../src/modules/memory/schema';
+import { createAdapter } from '../src/infrastructure/adapters/AdapterFactory';
 
 export interface EpisodicResult extends EpisodicRecord {
   score: number;
@@ -143,3 +143,5 @@ export class VadjanixMemory {
     this.store.close();
   }
 }
+export { MemoryStore } from '../src/modules/memory/store';
+export { CognitiveEngine } from '../src/modules/memory/engine';
