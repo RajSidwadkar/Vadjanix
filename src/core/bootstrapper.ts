@@ -32,6 +32,10 @@ export class Bootstrapper {
         const whatsapp = new WhatsAppAdapter(agent);
         const telegram = new TelegramAdapter(agent);
 
+        const { HeartbeatManager } = await import('../agent/heartbeat.js');
+        const heartbeat = new HeartbeatManager();
+        heartbeat.start(agent);
+
         return {
             agent,
             apiServer: app,

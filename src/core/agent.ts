@@ -4,14 +4,44 @@ import { VadjanixMemory } from '../modules/memory/system.js';
 import { ILLMProvider } from '../infrastructure/adapters/ILLMProvider.js';
 import { IntentPacket, IntentPacketSchema } from '../router/schema.js';
 import { MemoryWriteGate } from '../modules/security/memory_write_gate.js';
+import { VadjanixAgent as IVadjanixAgent } from './autonomy_schema.js';
 
-export class VadjanixAgent {
+export class VadjanixAgent implements IVadjanixAgent {
   private kvCache: Map<string, any> = new Map();
+  private outputChannels: Map<string, (msg: string) => Promise<void>> = new Map();
 
   constructor(
     private memory: VadjanixMemory,
     private llm: ILLMProvider
   ) {}
+
+  public registerOutputChannel(name: string, sender: (msg: string) => Promise<void>) {
+    this.outputChannels.set(name, sender);
+  }
+
+  public async sendWhatsApp(message: string): Promise<void> {
+    const sender = this.outputChannels.get('whatsapp');
+    if (sender) {
+      await sender(message);
+    } else {
+      console.warn('[AGENT] WhatsApp output channel not registered.');
+    }
+  }
+
+  public async processEventQueue(): Promise<void> {
+    // Stub for periodic event processing
+    console.log('[AGENT] Processing event queue...');
+  }
+
+  public async checkGoalsProgress(): Promise<void> {
+    // Stub for goal progress check (actual logic is in HeartbeatManager for now)
+    console.log('[AGENT] Checking goals progress...');
+  }
+
+  public async runAutonomousActions(): Promise<void> {
+    // Stub for running background autonomous tasks
+    console.log('[AGENT] Running autonomous actions...');
+  }
 
   public async handleIncomingMessage(platform: string, userId: string, message: string): Promise<string> {
     console.log(`\n[BRAIN - INCOMING] Platform: ${platform} | User: ${userId}`);

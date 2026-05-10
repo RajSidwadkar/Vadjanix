@@ -1,6 +1,8 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import { createRequire } from 'module';
+import fs from 'fs/promises';
+import path from 'path';
 const require = createRequire(import.meta.url);
 const qrcode = require('qrcode-terminal');
 import { IAdapter } from '../../core/IAdapter.js';
@@ -41,6 +43,19 @@ export class WhatsAppAdapter implements IAdapter {
 
         this.client.on('ready', () => {
           console.log('[WHATSAPP] Client is ready!');
+          this.agent.registerOutputChannel('whatsapp', async (msg: string) => {
+            const contactsPath = path.join(process.cwd(), 'config', 'CONTACTS.json');
+            try {
+              const contacts = JSON.parse(await fs.readFile(contactsPath, 'utf-8'));
+              if (contacts.owner && contacts.owner !== 'OWNER_JID') {
+                await this.client.sendMessage(contacts.owner, msg);
+              } else {
+                console.warn('[WHATSAPP] Owner JID not configured. Cannot send proactive message.');
+              }
+            } catch (e) {
+              console.error('[WHATSAPP] Failed to send proactive message:', e);
+            }
+          });
         });
 
         this.client.on('message', async (message: any) => {

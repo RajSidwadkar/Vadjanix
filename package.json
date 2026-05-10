@@ -19,7 +19,6 @@
     "discord.js": "^14.25.1",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
-    "node-cron": "^4.2.1",
     "node-nlp": "^5.0.0-alpha.5",
     "nostr-tools": "^2.23.3",
     "openai": "^6.32.0",
@@ -34,7 +33,9 @@
     "@types/node-cron": "^3.0.11",
     "@types/qrcode-terminal": "^0.12.2",
     "husky": "^9.1.7",
+    "node-cron": "^4.2.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.5"
   }
 }
