@@ -38,7 +38,17 @@ function run() {
         .filter(f => f !== path.resolve(__filename));
     
     for (const file of uniqueFiles) {
-        const result = spawnSync('npx', ['tsx', file], { stdio: 'inherit', shell: true });
+        let command = 'npx';
+        let args = ['tsx', file];
+
+        const content = fs.readFileSync(file, 'utf-8');
+        if (/^describe\(|^it\(|^test\(/m.test(content) || content.includes("from 'vitest'")) {
+            command = 'npx';
+            args = ['vitest', 'run', file];
+        }
+
+        console.log(`[RUNNING] ${file} via ${command === 'npx' && args[0] === 'vitest' ? 'vitest' : 'tsx'}...`);
+        const result = spawnSync(command, args, { stdio: 'inherit', shell: true });
         if (result.status && result.status > 0) {
             console.error('Test execution failed for: ' + file);
             process.exit(1);
