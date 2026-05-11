@@ -43,9 +43,8 @@ export class GhostSandbox {
   }
 
   async _runSandboxed(code: string): Promise<SimulationResult> {
-    // Robustly strip dangerous imports: fs, net, child_process, os (including submodules)
-    // Matches require('fs'), require("fs/promises"), import x from 'net', etc.
-    const dangerousRegex = /\b(fs|net|child_process|os)(\/.*)?\b/;
+    // Robustly strip dangerous imports: fs, net, child_process, os (including submodules and node: prefix)
+    const dangerousRegex = /\b(node:)?(fs|net|child_process|os)(\/.*)?\b/;
     
     let sanitizedCode = code.replace(
       new RegExp(`require\\s*\\(\\s*['"]${dangerousRegex.source}['"]\\s*\\)`, 'g'), 
