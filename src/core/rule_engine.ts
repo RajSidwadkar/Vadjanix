@@ -53,6 +53,7 @@ export class SymbolicRuleEngine {
   private rules: Rule[] = [];
   private rawRules: StoredRule[] = [];
   private principlesPath: string;
+  private conditionCache: Map<string, (ctx: Context) => boolean> = new Map();
 
   constructor(principlesPath = 'PRINCIPLES.json') {
     this.principlesPath = path.resolve(principlesPath);
@@ -112,15 +113,17 @@ export class SymbolicRuleEngine {
    * Replace field names with ctx values for safe evaluation.
    */
   public compileCondition(conditionStr: string): (ctx: Context) => boolean {
+    if (this.conditionCache.has(conditionStr)) {
+      return this.conditionCache.get(conditionStr)!;
+    }
+
     // Whitelist check: strictly numbers, spaces, operators, and alphanumeric for field names
-    // Note: dots and underscores are essential for Vadjanix field names
     const validPattern = /^[a-zA-Z0-9\s<>=!&|_.]+$/;
     if (!validPattern.test(conditionStr)) {
       throw new Error(`Invalid characters in condition: ${conditionStr}`);
     }
 
     // Replace field names with ctx access. 
-    // Words that are not numbers and not reserved keywords (true/false) are treated as ctx keys.
     const processedCondition = conditionStr.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\b/g, (match) => {
       if (['true', 'false', 'null', 'undefined'].includes(match)) return match;
       if (!isNaN(Number(match))) return match;
@@ -128,9 +131,9 @@ export class SymbolicRuleEngine {
     });
 
     try {
-      // Create a scoped function. Never use raw eval() on untrusted strings.
-      // The processedCondition now contains only ctx access and whitelisted operators/literals.
-      return new Function('ctx', `try { return !!(${processedCondition}); } catch { return false; }`) as (ctx: Context) => boolean;
+      const fn = new Function('ctx', `try { return !!(${processedCondition}); } catch { return false; }`) as (ctx: Context) => boolean;
+      this.conditionCache.set(conditionStr, fn);
+      return fn;
     } catch (e) {
       return () => false;
     }
