@@ -19,6 +19,7 @@
     "discord.js": "^14.25.1",
     "dotenv": "^16.6.1",
     "express": "^5.2.1",
+    "isolated-vm": "^6.1.2",
     "node-nlp": "^5.0.0-alpha.5",
     "nostr-tools": "^2.23.3",
     "openai": "^6.32.0",
