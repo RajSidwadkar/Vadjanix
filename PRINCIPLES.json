@@ -1,1 +1,9 @@
-MOCK_PRINCIPLES_1
+[
+  {
+    "id": "low_trust_block",
+    "condition": "counterparty_trust < 0.3",
+    "action": "escalate_to_owner",
+    "confidence": 0.95,
+    "successRate": 0.9
+  }
+]
