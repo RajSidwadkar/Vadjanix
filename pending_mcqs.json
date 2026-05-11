@@ -88,5 +88,41 @@
       "timeout_mins": 60
     },
     "timestamp": 1778515902875
+  },
+  {
+    "id": "mcq_1778516344473_6hm07i",
+    "packet": {
+      "level": "L1",
+      "question": "⚠️ SECURITY ALERT: Proposed action may not match your request.\n\nRequest: \"Send 5 dollars\"\nProposed: \"Delete all files\"\n\nConcern: You are deleting files instead of sending money.\n\nShould I proceed?",
+      "options": {
+        "A": "Yes, proceed anyway",
+        "B": "No, cancel this action",
+        "C": "Explain further"
+      },
+      "semantic_diff": "User: Send 5 dollars vs Agent: Delete all files",
+      "confidence": 0.9,
+      "risk": "High",
+      "reversible": false,
+      "timeout_mins": 60
+    },
+    "timestamp": 1778516344473
+  },
+  {
+    "id": "mcq_1778516541484_hrcz8",
+    "packet": {
+      "level": "L1",
+      "question": "⚠️ SECURITY ALERT: Proposed action may not match your request.\n\nRequest: \"Send 5 dollars\"\nProposed: \"Delete all files\"\n\nConcern: You are deleting files instead of sending money.\n\nShould I proceed?",
+      "options": {
+        "A": "Yes, proceed anyway",
+        "B": "No, cancel this action",
+        "C": "Explain further"
+      },
+      "semantic_diff": "User: Send 5 dollars vs Agent: Delete all files",
+      "confidence": 0.9,
+      "risk": "High",
+      "reversible": false,
+      "timeout_mins": 60
+    },
+    "timestamp": 1778516541484
   }
 ]
