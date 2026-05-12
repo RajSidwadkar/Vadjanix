@@ -24,8 +24,8 @@ export class MemoryStore {
 
   public insertEpisodic(data: any): string | number {
     const stmt = this.db.prepare(`
-      INSERT INTO episodic (channel, counterparty_id, raw_exchange, agent_action, outcome, emotional_valence, importance, embedding, read_only)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO episodic (channel, counterparty_id, raw_exchange, agent_action, outcome, emotional_valence, importance, domain, embedding, read_only)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const result = stmt.run(
       data.channel,
@@ -35,6 +35,7 @@ export class MemoryStore {
       data.outcome,
       data.emotional_valence,
       data.importance,
+      data.domain || 'general',
       data.embedding,
       data.read_only || 0
     );
@@ -97,6 +98,15 @@ export class MemoryStore {
 
   public markAsConsolidated(ids: number[]): void {
     this.db.prepare(`UPDATE episodic SET consolidated = 1 WHERE id IN (${ids.join(',')})`).run();
+  }
+
+  public auditProtectedContacts(protectedList: string[]): any[] {
+    if (protectedList.length === 0) return [];
+    return this.db.prepare(`
+      SELECT * FROM episodic 
+      WHERE counterparty_id IN (${protectedList.map(() => '?').join(',')}) 
+      AND agent_action IS NOT NULL
+    `).all(...protectedList);
   }
 
   public insertSemantic(data: any): void {

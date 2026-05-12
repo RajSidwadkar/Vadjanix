@@ -26,6 +26,10 @@ export class VadjanixAgent implements IVadjanixAgent {
     this.outputChannels.set(name, sender);
   }
 
+  public getSelfModel(): AgentSelfModel {
+    return this.selfModel;
+  }
+
   public async sendWhatsApp(message: string): Promise<void> {
     const sender = this.outputChannels.get('whatsapp');
     if (sender) {
@@ -179,7 +183,8 @@ Rules:
         agent_action: packet.action,
         outcome: packet.payload.message,
         emotional_valence: 0.5,
-        importance: 0.5
+        importance: 0.5,
+        domain
       });
     } else {
       console.warn(`[BRAIN - MEMORY] Write blocked by Gate.`);

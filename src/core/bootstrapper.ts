@@ -1,5 +1,4 @@
 import express from 'express';
-import { SecureVault } from '../modules/security/vault.js';
 import { MemoryStore } from '../modules/memory/store.js';
 import { CognitiveEngine } from '../modules/memory/engine.js';
 import { VadjanixMemory } from '../modules/memory/system.js';

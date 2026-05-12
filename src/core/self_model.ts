@@ -29,10 +29,15 @@ export class AgentSelfModel {
     novelty: 0.0
   };
   public recentFailures: FailureRecord[] = [];
-  private totalEpisodes = 0;
+  public totalEpisodes = 0;
+  public lastReflectionCount = 0;
 
   constructor() {
     this._loadState();
+  }
+
+  public getTotalEpisodes(): number {
+    return this.totalEpisodes;
   }
 
   private _loadState() {

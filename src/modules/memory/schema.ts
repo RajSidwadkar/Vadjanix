@@ -8,6 +8,7 @@ export interface EpisodicRecord {
   outcome: string;
   emotional_valence: number;
   importance: number;
+  domain: string;
   consolidated: number;
   embedding: Buffer;
   read_only: number;
@@ -65,6 +66,7 @@ export const EPISODIC_SCHEMA = `
     outcome TEXT NOT NULL,
     emotional_valence REAL NOT NULL,
     importance REAL NOT NULL,
+    domain TEXT NOT NULL DEFAULT 'general',
     consolidated INTEGER DEFAULT 0,
     embedding BLOB NOT NULL,
     read_only INTEGER DEFAULT 0

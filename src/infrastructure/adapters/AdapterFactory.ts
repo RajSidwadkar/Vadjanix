@@ -19,14 +19,15 @@ export async function createAdapter(config: { provider: string }): Promise<ILLMP
   const local_llm = new OllamaAdapter(llm_model);
   const cloud_llm = new GeminiAdapter();
 
-  // The order of fallback: SLM -> Local LLM -> Gemini
-  const providers = [slm, local_llm, cloud_llm];
-
-  // If the user requested a specific provider, we still want to give them preference
-  // but if it fails, we fall back to the reliable chain.
+  // Determine priority based on config
+  let providers: ILLMProvider[];
   if (config.provider === 'gemini') {
-    // If specifically asking for Gemini, maybe try it first or keep it in the chain
-    // User said preference to SLM first for reliability and performance.
+    providers = [cloud_llm, slm, local_llm];
+  } else if (config.provider === 'local' || config.provider === 'llm') {
+    providers = [local_llm, slm, cloud_llm];
+  } else {
+    // Default: SLM first
+    providers = [slm, local_llm, cloud_llm];
   }
 
   const fallbackProvider = new FallbackLLMProvider(providers);
