@@ -4,9 +4,7 @@ import { CognitiveEngine } from '../modules/memory/engine.js';
 import { VadjanixMemory } from '../modules/memory/system.js';
 import { VadjanixAgent } from './agent.js';
 import { MCQCoordinator } from '../modules/autonomy/mcq_coordinator.js';
-import { DiscordAdapter } from '../infrastructure/adapters/discord.js';
-import { WhatsAppAdapter } from '../infrastructure/adapters/whatsapp.js';
-import { TelegramAdapter } from '../infrastructure/adapters/telegram.js';
+import { ChannelManager } from '../channels/channel_manager.js';
 import { createAdapter } from '../infrastructure/adapters/AdapterFactory.js';
 
 export class Bootstrapper {
@@ -27,9 +25,8 @@ export class Bootstrapper {
         
         const agent = new VadjanixAgent(memory, llmRouter);
         
-        const discord = new DiscordAdapter(agent);
-        const whatsapp = new WhatsAppAdapter(agent);
-        const telegram = new TelegramAdapter(agent);
+        const channels = new ChannelManager(agent);
+        await channels.initialize();
 
         const { HeartbeatManager } = await import('../agent/heartbeat.js');
         const heartbeat = new HeartbeatManager();
@@ -38,9 +35,7 @@ export class Bootstrapper {
         return {
             agent,
             apiServer: app,
-            discord,
-            whatsapp,
-            telegram,
+            channels,
             mcq
         };
     }

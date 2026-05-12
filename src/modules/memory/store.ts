@@ -1,4 +1,6 @@
 import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   EpisodicRecord,
   SemanticRecord,
@@ -14,6 +16,10 @@ export class MemoryStore {
   private db: Database.Database;
 
   constructor(dbPath: string = 'memory/vadjanix.db') {
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     this.db = new Database(dbPath);
     this.db.exec(EPISODIC_SCHEMA);
     this.db.exec(SEMANTIC_SCHEMA);
