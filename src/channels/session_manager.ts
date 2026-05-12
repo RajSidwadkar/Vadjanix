@@ -1,5 +1,6 @@
 import { SessionState } from './types.js';
 
+
 export class SessionManager {
   private sessions: Map<string, SessionState> = new Map();
   private readonly SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24h

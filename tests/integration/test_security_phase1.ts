@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import { SecureVault } from '../../src/security/vault.js';
-import { AuditChain } from '../../src/modules/security/audit_chain.js';
-import { MemoryWriteGate } from '../../src/modules/security/memory_write_gate.js';
-import { NetworkGuard } from '../../src/modules/security/network_guard.js';
+import { AuditChain } from '../../src/security/audit_chain.js';
+import { MemoryWriteGate } from '../../src/security/memory_gate.js';
+import { NetworkGuard } from '../../src/security/ssrf_guard.js';
 import { RateLimiter } from '../../src/brain/rate_limiter.js';
 import { verifyEvent } from 'nostr-tools';
 import fs from 'node:fs/promises';
@@ -40,12 +40,12 @@ async function testSuite() {
   })) score++;
 
   if (await runTest("CVE-2 (Audit Chain): SHA-256 Hash-Chaining", async () => {
-    const logPath = path.join(process.cwd(), 'swarm_log.md');
+    const logPath = path.join(process.cwd(), 'audit.log');
     const initialContent = await fs.readFile(logPath, 'utf-8').catch(() => "");
     await AuditChain.appendToAuditChain("SECURITY_TEST_EVENT");
     const updatedContent = await fs.readFile(logPath, 'utf-8');
     assert.ok(updatedContent.length > initialContent.length);
-    assert.ok(updatedContent.includes("HASH: "));
+    assert.ok(updatedContent.includes("hash\":"));
   })) score++;
 
   if (await runTest("CVE-3 (Prompt Injection): System Isolation", async () => {

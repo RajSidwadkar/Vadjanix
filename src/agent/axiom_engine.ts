@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { embed, cosineSimilarity } from '../embedding/embed_client.js';
 import { MCQPacket } from '../core/mcq_schema.js';
-import { logDecision } from '../memory/audit.js';
+import { auditLog } from '../security/audit_chain.js';
 
 export interface AlignmentEntry {
   timestamp: string;
@@ -107,12 +107,12 @@ export class DynamicAxiomEngine {
     rules.push(rule);
     fs.writeFileSync(this.principlesPath, JSON.stringify(rules, null, 2), 'utf8');
 
-    await logDecision(
-      'APPLY_AXIOM',
-      `Applying new axiom from user correction: ${rule.id}`,
-      'DynamicAxiomEngine Alignment',
-      `Rule added: ${rule.id}`
-    );
+    await auditLog({
+      action: 'APPLY_AXIOM',
+      context: `Applying new axiom from user correction: ${rule.id}`,
+      rule: 'DynamicAxiomEngine Alignment',
+      decision: `Rule added: ${rule.id}`
+    });
   }
 
   calculateAlignmentScore(): number {

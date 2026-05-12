@@ -1,36 +1,61 @@
 import net from 'node:net';
+import dns from 'node:dns/promises';
 
-export function allowedUrl(url: string): boolean {
-  try {
-    const parsedUrl = new URL(url);
-    const hostname = parsedUrl.hostname;
+export class NetworkGuard {
+  private static readonly BLOCKED_RANGES = [
+    '127.0.0.0/8',
+    '169.254.169.254/32',
+    '10.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+    '0.0.0.0/32'
+  ];
 
-    if (net.isIP(hostname)) {
-      return !isRestrictedIP(hostname);
+  private static ipToLong(ip: string): number {
+    return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+  }
+
+  private static isIpInRange(ip: string, range: string): boolean {
+    const [rangeIp, cidr] = range.split('/');
+    const mask = ~((1 << (32 - parseInt(cidr, 10))) - 1) >>> 0;
+    return (this.ipToLong(ip) & mask) === (this.ipToLong(rangeIp) & mask);
+  }
+
+  public static async validateUrl(urlStr: string): Promise<boolean> {
+    try {
+      const url = new URL(urlStr);
+      const host = url.hostname;
+
+      if (net.isIP(host)) {
+        return !this.BLOCKED_RANGES.some(range => this.isIpInRange(host, range));
+      }
+
+      const addresses = await dns.resolve4(host).catch(() => []);
+      for (const addr of addresses) {
+        if (this.BLOCKED_RANGES.some(range => this.isIpInRange(addr, range))) {
+          return false;
+        }
+      }
+
+      const restrictedHostnames = ['localhost', 'metadata.google.internal'];
+      if (restrictedHostnames.includes(host.toLowerCase())) return false;
+
+      return true;
+    } catch {
+      return false;
     }
+  }
 
-    // Note: In a real environment, we should resolve DNS and check IPs.
-    // For this implementation, we'll block common restricted hostnames.
-    const restrictedHostnames = ['localhost', 'metadata.google.internal'];
-    if (restrictedHostnames.includes(hostname.toLowerCase())) return false;
-
-    return true;
-  } catch {
-    return false;
+  public static async secureFetch(url: string, options?: RequestInit): Promise<Response> {
+    const isValid = await this.validateUrl(url);
+    if (!isValid) {
+      throw new Error('SSRF_GUARD_BLOCK: Destination address is in a restricted range.');
+    }
+    return fetch(url, options);
   }
 }
 
-function isRestrictedIP(ip: string): boolean {
-  // Block: 10.x.x.x, 192.168.x.x, 172.16-31.x.x, 127.x.x.x, 169.254.x.x
-  if (ip.startsWith('127.')) return true;
-  if (ip.startsWith('10.')) return true;
-  if (ip.startsWith('192.168.')) return true;
-  if (ip.startsWith('169.254.')) return true;
-  
-  if (ip.startsWith('172.')) {
-    const secondOctet = parseInt(ip.split('.')[1], 10);
-    if (secondOctet >= 16 && secondOctet <= 31) return true;
-  }
-
-  return false;
+// For functional style compatibility
+export async function allowedUrl(url: string): Promise<boolean> {
+  return await NetworkGuard.validateUrl(url);
 }
