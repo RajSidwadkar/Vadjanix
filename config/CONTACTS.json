@@ -1,5 +1,1 @@
-{
-  "owner": "OWNER_JID",
-  "protected": ["JID1", "JID2"],
-  "agents": []
-}
+{"protected":["12345@s.whatsapp.net"]}

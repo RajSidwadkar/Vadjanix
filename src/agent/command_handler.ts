@@ -12,6 +12,10 @@ export class CommandHandler {
     return this.isPaused;
   }
 
+  public static setPaused(paused: boolean): void {
+    this.isPaused = paused;
+  }
+
   public async handleOwnerCommand(text: string): Promise<string> {
     const args = text.trim().split(/\s+/);
     const cmd = args[0].toLowerCase();

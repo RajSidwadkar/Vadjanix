@@ -5,10 +5,12 @@ import { VadjanixAgent } from '../core/autonomy_schema.js';
 import { ReportingEngine } from './report_engine.js';
 import { MCQStore } from './mcq_store.js';
 import { CommandHandler } from './command_handler.js';
+import { ReflectionEngine } from './reflection_engine.js';
 
 export class HeartbeatManager {
   private reports = new ReportingEngine();
   private mcqStore = new MCQStore();
+  private reflection = new ReflectionEngine();
 
   private auditLog(entry: Record<string, unknown>): void {
     const auditPath = path.join(process.cwd(), 'audit.log');
@@ -26,6 +28,7 @@ export class HeartbeatManager {
         await this.checkGoalsProgress(agent);
         await agent.runAutonomousActions();
         await this.checkVetoWindows(agent);
+        await this.checkReflectionTrigger(agent);
       } catch (error) {
         this.auditLog({ 
           type: 'HEARTBEAT_ERROR', 
@@ -121,6 +124,18 @@ export class HeartbeatManager {
     if (progress < 20 && total > 5) {
       // Example of "flagging" if progress is low
       // await agent.sendWhatsApp(`⚠️ Goal progress is low: ${progress.toFixed(1)}% (${completed}/${total})`);
+    }
+  }
+
+  private async checkReflectionTrigger(agent: VadjanixAgent): Promise<void> {
+    const selfModel = agent.getSelfModel();
+    const currentCount = selfModel.getTotalEpisodes();
+    const lastCount = selfModel.lastReflectionCount;
+
+    if (currentCount - lastCount >= 50) {
+      console.log(`[HEARTBEAT] Triggering reflection engine (${currentCount} episodes)...`);
+      await this.reflection.runReflection(agent);
+      selfModel.lastReflectionCount = currentCount;
     }
   }
 }

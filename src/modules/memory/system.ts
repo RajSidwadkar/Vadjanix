@@ -62,6 +62,7 @@ export class VadjanixMemory {
         ...data, 
         agent_action,
         read_only,
+        domain: data.domain || 'general',
         embedding: embeddingBuffer 
       });
       this.maybe_consolidate().catch((err) => {
