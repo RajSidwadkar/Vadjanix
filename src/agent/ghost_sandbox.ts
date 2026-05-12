@@ -43,20 +43,35 @@ export class GhostSandbox {
   }
 
   async _runSandboxed(code: string): Promise<SimulationResult> {
-    // Robustly strip dangerous imports: fs, net, child_process, os (including submodules and node: prefix)
-    const dangerousRegex = /\b(node:)?(fs|net|child_process|os)(\/.*)?\b/;
+    // Robustly strip dangerous imports: fs, net, child_process, os (including submodules, node: prefix, and async imports)
+    const dangerousModules = ['fs', 'net', 'child_process', 'os', 'http', 'https', 'tls', 'dns', 'dgram'];
+    const modulePattern = dangerousModules.join('|');
+    const dangerousRegex = new RegExp(`\\b(node:)?(${modulePattern})(\\/.*)?\\b`);
     
-    let sanitizedCode = code.replace(
+    let sanitizedCode = code;
+
+    // 1. require('...')
+    sanitizedCode = sanitizedCode.replace(
       new RegExp(`require\\s*\\(\\s*['"]${dangerousRegex.source}['"]\\s*\\)`, 'g'), 
       '{}'
     );
+
+    // 2. import ... from '...'
     sanitizedCode = sanitizedCode.replace(
       new RegExp(`import\\s+.*?from\\s+['"]${dangerousRegex.source}['"]`, 'g'), 
-      '// stripped import'
+      '// stripped static import'
     );
+
+    // 3. import('...')
+    sanitizedCode = sanitizedCode.replace(
+      new RegExp(`import\\s*\\(\\s*['"]${dangerousRegex.source}['"]\\s*\\)`, 'g'), 
+      'Promise.resolve({})'
+    );
+
+    // 4. bare import '...'
     sanitizedCode = sanitizedCode.replace(
       new RegExp(`import\\s+['"]${dangerousRegex.source}['"]`, 'g'), 
-      '// stripped import'
+      '// stripped bare import'
     );
 
     const isolate = new ivm.Isolate({ memoryLimit: this.MEMORY_LIMIT_MB });

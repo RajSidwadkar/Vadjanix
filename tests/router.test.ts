@@ -1,73 +1,56 @@
-import assert from 'node:assert';
+import { describe, it, expect } from 'vitest';
 import CognitiveRouter from '../src/core/cognitive_router.js';
 import { embed } from '../src/embedding/embed_client.js';
 
-async function runTest(name: string, fn: () => Promise<void> | void) {
-  try {
-    await fn();
-    console.log(`[PASS] ${name}`);
-  } catch (error) {
-    console.error(`[FAIL] ${name}`);
-    console.error(error);
-    process.exit(1);
-  }
-}
-
-async function main() {
-  console.log('--- STARTING COGNITIVE ROUTER TESTS ---');
-
-  await runTest('L0 — Reflex fires for arithmetic input', async () => {
+describe('Cognitive Router', () => {
+  it('L0 — Reflex fires for arithmetic input', async () => {
     const router = new CognitiveRouter(':memory:', './config');
     const result = await router.route('2 + 2');
-    assert.strictEqual(result.source, 'reflex');
-    assert.strictEqual(result.action, 'calculate_sum');
-    assert.strictEqual(result.llmUsed, false);
+    expect(result.source).toBe('reflex');
+    expect(result.action).toBe('calculate_sum');
+    expect(result.llmUsed).toBe(false);
   });
 
-  await runTest('L0 — Reflex fires for boundary violation (rm -rf)', async () => {
+  it('L0 — Reflex fires for boundary violation (rm -rf)', async () => {
     const router = new CognitiveRouter(':memory:', './config');
     const result = await router.route('rm -rf /');
     if (result.source === 'reflex') {
-        assert.strictEqual(result.action, 'block_critical_command');
+        expect(result.action).toBe('block_critical_command');
     }
   });
 
-  await runTest('L1 — Episodic fires for similar input', async () => {
+  it('L1 — Episodic fires for similar input', async () => {
     const router = new CognitiveRouter(':memory:', './config');
     const input = 'What is the weather like?';
     const embedding = await embed(input);
     router.addEpisode(input, embedding, 'provide_weather_info');
 
     const result = await router.route('What is the weather like?');
-    assert.strictEqual(result.source, 'episodic');
-    assert.strictEqual(result.action, 'provide_weather_info');
-    assert.ok(result.confidence >= 0.8);
+    expect(result.source).toBe('episodic');
+    expect(result.action).toBe('provide_weather_info');
+    expect(result.confidence).toBeGreaterThanOrEqual(0.8);
   });
 
-  await runTest('L2 — Causal fires for causal chain', async () => {
+  it('L2 — Causal fires for causal chain', async () => {
     const router = new CognitiveRouter(':memory:', './config');
     router.addCausalEdge('smoke', 'fire', 'call_fire_department', 0.9);
     
     const result = await router.route('I see smoke');
-    assert.strictEqual(result.source, 'causal');
-    assert.strictEqual(result.action, 'call_fire_department');
-    assert.ok(result.confidence > 0.7);
+    expect(result.source).toBe('causal');
+    expect(result.action).toBe('call_fire_department');
+    expect(result.confidence).toBeGreaterThan(0.7);
   });
 
-  await runTest('L3 — Fallback fires for unknown novel input', async () => {
+  it('L3 — Fallback fires for unknown novel input', async () => {
     const router = new CognitiveRouter(':memory:', './config');
     const result = await router.route('Explain quantum entanglement in the style of a pirate');
-    assert.strictEqual(result.source, 'llm_required');
-    assert.strictEqual(result.llmUsed, true);
+    expect(result.source).toBe('llm_required');
+    expect(result.llmUsed).toBe(true);
   });
 
-  await runTest('source field is always set correctly', async () => {
+  it('source field is always set correctly', async () => {
     const router = new CognitiveRouter(':memory:', './config');
     const result = await router.route('random input');
-    assert.ok(['reflex', 'episodic', 'causal', 'llm_required'].includes(result.source));
+    expect(['reflex', 'episodic', 'causal', 'llm_required']).toContain(result.source);
   });
-
-  console.log('ROUTER STATUS: ROUTING STABLE.\n');
-}
-
-main();
+});

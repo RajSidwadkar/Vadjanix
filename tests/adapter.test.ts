@@ -1,27 +1,14 @@
-import assert from 'node:assert';
+import { describe, it, expect } from 'vitest';
 import { createAdapter } from '../src/core/adapter_factory.js';
 import { OllamaAdapter } from '../src/adapters/ollama_adapter.js';
 
-async function runTest(name: string, fn: () => Promise<void> | void) {
-  try {
-    await fn();
-    console.log(`[PASS] ${name}`);
-  } catch (error) {
-    console.error(`[FAIL] ${name}`);
-    console.error(error);
-    process.exit(1);
-  }
-}
-
-async function main() {
-  console.log('--- STARTING ADAPTER FACTORY TESTS ---');
-
-  await runTest('createAdapter({provider:"ollama"}) returns OllamaAdapter', () => {
+describe('Adapter Factory', () => {
+  it('createAdapter({provider:"ollama"}) returns OllamaAdapter', () => {
     const adapter = createAdapter({ provider: 'ollama' });
-    assert.ok(adapter instanceof OllamaAdapter);
+    expect(adapter).toBeInstanceOf(OllamaAdapter);
   });
 
-  await runTest('isAvailable() returns boolean and does not throw when Ollama is offline', async () => {
+  it('isAvailable() returns boolean and does not throw when Ollama is offline', async () => {
     const originalFetch = global.fetch;
     global.fetch = async () => { throw new Error('Connection refused'); };
     
@@ -29,14 +16,10 @@ async function main() {
       const adapter = new OllamaAdapter();
       const available = await adapter.isAvailable();
       
-      assert.strictEqual(typeof available, 'boolean');
-      assert.strictEqual(available, false);
+      expect(typeof available).toBe('boolean');
+      expect(available).toBe(false);
     } finally {
       global.fetch = originalFetch;
     }
   });
-
-  console.log('ADAPTER STATUS: OPERATIONAL.\n');
-}
-
-main();
+});
