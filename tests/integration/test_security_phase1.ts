@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { SecureVault } from '../../src/modules/security/vault.js';
+import { SecureVault } from '../../src/security/vault.js';
 import { AuditChain } from '../../src/modules/security/audit_chain.js';
 import { MemoryWriteGate } from '../../src/modules/security/memory_write_gate.js';
 import { NetworkGuard } from '../../src/modules/security/network_guard.js';
@@ -32,9 +32,10 @@ async function testSuite() {
   let score = 0;
 
   if (await runTest("CVE-1 (Vault): AES-256-GCM Integrity", async () => {
+    const vault = new SecureVault("master-password");
     const data = "SovereignAGI-2026";
-    const encrypted = SecureVault.encrypt(data);
-    const decrypted = SecureVault.decrypt(encrypted);
+    vault.set("test", data);
+    const decrypted = vault.get("test");
     assert.strictEqual(decrypted, data);
   })) score++;
 

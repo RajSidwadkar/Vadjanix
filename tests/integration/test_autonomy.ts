@@ -4,8 +4,8 @@ import path from 'node:path';
 import cron from 'node-cron';
 import { GoalTracker } from '../../src/modules/autonomy/goals.js';
 import { parseRecentAuditLogs } from '../../src/security/audit_parser.js';
-import { ReportingEngine } from '../../src/modules/autonomy/reports.js';
-import { HeartbeatManager } from '../../src/modules/autonomy/heartbeat.js';
+import { ReportingEngine } from '../../src/agent/report_engine.js';
+import { HeartbeatManager } from '../../src/agent/heartbeat.js';
 import { VadjanixAgent } from '../../src/core/autonomy_schema.js';
 
 const GOALS_PATH = path.join(process.cwd(), 'GOALS.md');
@@ -61,7 +61,7 @@ async function runTests() {
 
     await (async () => {
       const reporting = new ReportingEngine();
-      const report = reporting.buildDailyReport();
+      const report = await reporting.buildDailyReport();
       assert.ok(report.includes('Handled autonomously: 1'));
       assert.ok(report.includes('Escalated to you: 1'));
       assert.ok(report.includes('📊 Vadjanix Daily Report'));
