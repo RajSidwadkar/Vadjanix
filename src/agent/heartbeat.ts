@@ -6,11 +6,14 @@ import { ReportingEngine } from './report_engine.js';
 import { MCQStore } from './mcq_store.js';
 import { CommandHandler } from './command_handler.js';
 import { ReflectionEngine } from './reflection_engine.js';
+import { SyncClient } from '../relay/sync_client.js';
+import { SecureVault } from '../security/vault.js';
 
 export class HeartbeatManager {
   private reports = new ReportingEngine();
   private mcqStore = new MCQStore();
   private reflection = new ReflectionEngine();
+  private syncClient = new SyncClient();
 
   private auditLog(entry: Record<string, unknown>): void {
     const auditPath = path.join(process.cwd(), 'audit.log');
@@ -18,7 +21,16 @@ export class HeartbeatManager {
     fs.appendFileSync(auditPath, logLine, 'utf-8');
   }
 
-  public start(agent: VadjanixAgent): void {
+  public start(agent: VadjanixAgent, vault: SecureVault): void {
+    // Register relay as output channel if configured
+    if (process.env.RELAY_IP) {
+      console.log('[HEARTBEAT] Registering Relay as WhatsApp output channel');
+      const ownerJid = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'config', 'CONTACTS.json'), 'utf8')).owner;
+      agent.registerOutputChannel('whatsapp', async (msg) => {
+        await this.syncClient.sendRelayMessage(ownerJid, msg);
+      });
+    }
+
     // 15-minute cycle
     cron.schedule('*/15 * * * *', async () => {
       if (CommandHandler.getPaused()) return;
@@ -37,6 +49,36 @@ export class HeartbeatManager {
         });
       }
     });
+
+    // 6-hour snapshot push
+    cron.schedule('0 */6 * * *', async () => {
+      try {
+        console.log('[HEARTBEAT] Triggering scheduled snapshot push...');
+        await this.syncClient.pushSnapshot(vault);
+      } catch (error) {
+        this.auditLog({ 
+          type: 'HEARTBEAT_ERROR', 
+          task: 'snapshot_push', 
+          error: error instanceof Error ? error.message : String(error) 
+        });
+      }
+    });
+
+    // Start relay queue polling (every 30s)
+    this.syncClient.setItemHandler(async (item) => {
+      if (item.type === 'whatsapp_message') {
+        const msg = JSON.parse(item.payload);
+        const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+        const sender = msg.key.remoteJid;
+        if (text && sender) {
+          const response = await agent.handleIncomingMessage('whatsapp', sender, text);
+          if (response) {
+            await this.syncClient.sendRelayMessage(sender, response);
+          }
+        }
+      }
+    });
+    this.syncClient.startPolling();
 
     // Daily report at 7:00 AM
     cron.schedule('0 7 * * *', async () => {
