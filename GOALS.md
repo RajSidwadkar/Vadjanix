@@ -1,0 +1,3 @@
+# Vadjanix Goals
+
+- [ ] Initialize System

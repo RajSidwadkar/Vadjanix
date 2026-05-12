@@ -59,6 +59,25 @@ export class VadjanixAgent implements IVadjanixAgent {
     console.log(`[BRAIN - INPUT] Text: "${message}"`);
     
     try {
+      // Gate 0: Protected Contact Boundary
+      const contactsPath = path.join(process.cwd(), 'config', 'CONTACTS.json');
+      const contacts = JSON.parse(await fs.readFile(contactsPath, 'utf8'));
+      if (contacts.protected?.includes(userId)) {
+        console.log(`[BRAIN - BOUNDARY] Protected contact ${userId} detected. No reply will be sent.`);
+        await this.memory.writeEpisode({
+          channel: platform,
+          counterparty_id: userId,
+          raw_exchange: message,
+          agent_action: null,
+          outcome: "READ_ONLY_ACCESS",
+          emotional_valence: 0,
+          importance: 0.1,
+          domain: 'protected',
+          read_only: 1
+        });
+        return ""; // Empty string tells channel manager not to send a reply
+      }
+
       const sessionId = `${platform}-${userId}`;
       const packet = await this.handleRequest(message, sessionId);
       const response = packet.payload.message;
