@@ -1,5 +1,5 @@
 import { IntentPacket } from '../router/schema.js';
-import { logDecision } from '../memory/audit.js';
+import { auditLog } from '../security/audit_chain.js';
 
 export class Negotiator {
   public async evaluateProposal(
@@ -24,12 +24,12 @@ export class Negotiator {
         reasoning: "Walk away strategy chosen."
       };
 
-      await logDecision(
-        'refuse',
-        `Negotiation for ${role} (Limit: ${limit}, Last: ${myLastOffer})`,
-        'Walk Away Protocol',
-        'Terminated negotiation.'
-      );
+      await auditLog({
+        action: 'refuse',
+        context: `Negotiation for ${role} (Limit: ${limit}, Last: ${myLastOffer})`,
+        rule: 'Walk Away Protocol',
+        decision: 'Terminated negotiation.'
+      });
 
       return packet;
     }
@@ -69,12 +69,12 @@ export class Negotiator {
       reasoning: reasoning
     };
 
-    await logDecision(
-      'propose',
-      `Counter-offer for ${role} (Last: ${myLastOffer}, Step: ${concessionStep})`,
-      `${finalStrategy === 'hold_firm' ? 'Hard Ceiling/Floor Rule' : 'Monotonic Bidding Rule'}`,
-      `Counter-offer of $${newOffer}`
-    );
+    await auditLog({
+      action: 'propose',
+      context: `Counter-offer for ${role} (Last: ${myLastOffer}, Step: ${concessionStep})`,
+      rule: `${finalStrategy === 'hold_firm' ? 'Hard Ceiling/Floor Rule' : 'Monotonic Bidding Rule'}`,
+      decision: `Counter-offer of $${newOffer}`
+    });
 
     return packet;
   }

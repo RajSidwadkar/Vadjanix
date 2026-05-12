@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SecureVault } from '../src/security/vault.js';
-import { auditLog } from '../src/security/audit_chain.js';
+import { AuditChain, auditLog } from '../src/security/audit_chain.js';
 import { securityGate } from '../src/security/edge_router.js';
 import { trustGate } from '../src/security/memory_gate.js';
 import { allowedUrl } from '../src/security/ssrf_guard.js';
@@ -25,11 +25,11 @@ describe('Security Modules', () => {
     expect(data.secret).not.toBe('my-password');
   });
 
-  it('auditLog: SHA-256 hash chaining', () => {
+  it('auditLog: SHA-256 hash chaining', async () => {
     const entry1 = { event: 'test1' };
     const entry2 = { event: 'test2' };
-    auditLog(entry1);
-    auditLog(entry2);
+    await auditLog(entry1);
+    await auditLog(entry2);
     
     const content = fs.readFileSync('audit.log', 'utf8');
     const lines = content.trim().split('\n');
@@ -52,11 +52,11 @@ describe('Security Modules', () => {
     expect(trustGate('content', 0.5)).toBe(true);
   });
 
-  it('allowedUrl: block restricted IPs', () => {
-    expect(allowedUrl('http://127.0.0.1')).toBe(false);
-    expect(allowedUrl('http://169.254.169.254')).toBe(false);
-    expect(allowedUrl('http://192.168.1.1')).toBe(false);
-    expect(allowedUrl('https://google.com')).toBe(true);
+  it('allowedUrl: block restricted IPs', async () => {
+    expect(await allowedUrl('http://127.0.0.1')).toBe(false);
+    expect(await allowedUrl('http://169.254.169.254')).toBe(false);
+    expect(await allowedUrl('http://192.168.1.1')).toBe(false);
+    expect(await allowedUrl('https://google.com')).toBe(true);
   });
 
   it('verifyNostrEvent: reject invalid events', async () => {

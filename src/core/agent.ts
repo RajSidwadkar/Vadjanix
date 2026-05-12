@@ -3,7 +3,7 @@ import path from 'path';
 import { VadjanixMemory } from '../modules/memory/system.js';
 import { ILLMProvider } from '../infrastructure/adapters/ILLMProvider.js';
 import { IntentPacket, IntentPacketSchema } from '../router/schema.js';
-import { MemoryWriteGate } from '../modules/security/memory_write_gate.js';
+import { MemoryWriteGate } from '../security/memory_gate.js';
 import { VadjanixAgent as IVadjanixAgent } from './autonomy_schema.js';
 import { AgentSelfModel } from './self_model.js';
 import { GlobalWorkspace } from '../agent/global_workspace.js';

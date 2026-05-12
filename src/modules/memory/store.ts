@@ -20,7 +20,20 @@ export class MemoryStore {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    this.db = new Database(dbPath);
+    if (fs.existsSync(dbPath)) {
+      const stats = fs.statSync(dbPath);
+      if (stats.size < 100) {
+        console.warn(`[MEMORY] Database file ${dbPath} is too small, deleting and recreating...`);
+        fs.unlinkSync(dbPath);
+      }
+    }
+    try {
+      this.db = new Database(dbPath);
+    } catch (e) {
+      console.warn(`[MEMORY] Failed to open database ${dbPath}, deleting and recreating...`);
+      if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+      this.db = new Database(dbPath);
+    }
     this.db.exec(EPISODIC_SCHEMA);
     this.db.exec(SEMANTIC_SCHEMA);
     this.db.exec(PROCEDURAL_SCHEMA);

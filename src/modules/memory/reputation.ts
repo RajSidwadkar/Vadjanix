@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { NostrAdapter } from '../../infrastructure/adapters/nostr.js';
+import { NostrAdapter } from '../../channels/nostr_adapter.js';
 import { IntentPacket } from '../../router/schema.js';
 
 export async function calculateReputation(pubkey: string): Promise<number> {
@@ -63,5 +63,15 @@ export async function broadcastTrustScore(pubkey: string): Promise<boolean> {
   };
 
   console.log(`[REPUTATION] Broadcasting trust score for ${pubkey}: ${score.toFixed(2)}%`);
-  return await NostrAdapter.nostrSend(packet);
+  
+  try {
+    const adapter = new NostrAdapter();
+    await adapter.initialize();
+    await adapter.send(pubkey, packet.payload.message);
+    await adapter.stop();
+    return true;
+  } catch (error) {
+    console.error(`[REPUTATION ERROR] Failed to broadcast score:`, error);
+    return false;
+  }
 }

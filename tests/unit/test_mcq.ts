@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { ActionClassifier } from '../../src/core/autonomy.js';
-import { formatWhatsAppMCQ } from '../../src/infrastructure/adapters/whatsapp_formatter.js';
+import { formatWhatsAppMCQ } from '../../src/channels/whatsapp_formatter.js';
 import { MCQPacket } from '../../src/core/mcq_schema.js';
 
 async function runTests() {
