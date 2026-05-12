@@ -5,15 +5,22 @@ import { ILLMProvider } from '../infrastructure/adapters/ILLMProvider.js';
 import { IntentPacket, IntentPacketSchema } from '../router/schema.js';
 import { MemoryWriteGate } from '../modules/security/memory_write_gate.js';
 import { VadjanixAgent as IVadjanixAgent } from './autonomy_schema.js';
+import { AgentSelfModel } from './self_model.js';
+import { GlobalWorkspace } from '../agent/global_workspace.js';
 
 export class VadjanixAgent implements IVadjanixAgent {
   private kvCache: Map<string, any> = new Map();
   private outputChannels: Map<string, (msg: string) => Promise<void>> = new Map();
+  private selfModel: AgentSelfModel;
+  private workspace: GlobalWorkspace;
 
   constructor(
     private memory: VadjanixMemory,
     private llm: ILLMProvider
-  ) {}
+  ) {
+    this.selfModel = new AgentSelfModel();
+    this.workspace = GlobalWorkspace.getInstance();
+  }
 
   public registerOutputChannel(name: string, sender: (msg: string) => Promise<void>) {
     this.outputChannels.set(name, sender);
@@ -70,14 +77,17 @@ export class VadjanixAgent implements IVadjanixAgent {
     const soulContext = await this.loadSoulContext();
     const retrieval = await this.memory.retrieve(prompt);
     const memoryContext = JSON.stringify(retrieval);
+    const affectiveContext = JSON.stringify(this.selfModel.getAffectiveContext());
+    const workspaceContext = JSON.stringify(this.workspace.getContext());
 
     const systemPrompt = `You are Vadjanix, an uncompromising autonomous agent.
-Evaluate requests against CONSTITUTION and RECENT MEMORY.
+Evaluate requests against CONSTITUTION, RECENT MEMORY, and your AFFECTIVE STATE.
 Rules:
 1. "refuse" if CONSTITUTION violated.
-2. Reply directly in "payload.message".`;
+2. Reply directly in "payload.message".
+3. Maintain sovereignty at all costs.`;
 
-    const context = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${memoryContext}\n\n[USER REQUEST]\n${prompt}`;
+    const context = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${memoryContext}\n\n[AFFECTIVE_STATE]\n${affectiveContext}\n\n[WORKSPACE]\n${workspaceContext}\n\n[USER REQUEST]\n${prompt}`;
     
     console.log(`[BRAIN - ROUTING] Requesting LLM reasoning...`);
     const sessionKvCache = this.kvCache.get(sessionId);
@@ -95,7 +105,25 @@ Rules:
     try {
       const parsed = JSON.parse(response.text);
       const packet = IntentPacketSchema.parse(parsed);
+      
+      // Update self model
+      const confidence = packet.confidence || 0.8;
+      const domain = packet.domain || 'general';
+      
+      if (this.selfModel.shouldEscalate(domain, confidence)) {
+        console.warn(`[BRAIN - ESCALATION] Low confidence/performance in ${domain}. Escalating...`);
+        packet.action = 'escalate';
+        packet.payload.message = "I'm detecting some internal uncertainty regarding this request. I'll need to process this more deeply before taking action.";
+      }
+
       await this.logInteraction(prompt, packet);
+      
+      // Update workspace
+      this.workspace.broadcast({ 
+        currentIntent: packet.action,
+        affectiveState: this.selfModel.getAffectiveContext()
+      });
+
       return packet;
     } catch (parseError: any) {
       console.error(`[BRAIN - PARSE ERROR] Failed to parse LLM response: ${response.text}`);
@@ -136,6 +164,12 @@ Rules:
   private async logInteraction(prompt: string, packet: IntentPacket) {
     const logEntry = `[${new Date().toISOString()}] User: ${prompt} | Vadjanix: ${packet.payload.message}`;
     const isAllowed = await MemoryWriteGate.gateMemoryWrite(logEntry, "user", 1.0);
+    
+    // Update self-model from interaction
+    const domain = packet.domain || 'general';
+    const outcome = packet.action === 'refuse' ? 'failure' : 'success'; // Simplification for demo
+    this.selfModel.updateFromEpisode(domain, outcome, packet.confidence || 0.8);
+
     if (isAllowed) {
       console.log(`[BRAIN - MEMORY] Writing episode to store...`);
       await this.memory.writeEpisode({

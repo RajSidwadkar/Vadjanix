@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const IntentPacketSchema = z.object({
   from: z.string(),
   to: z.string(),
-  action: z.enum(["read", "write", "propose", "query", "call", "refuse"]),
+  action: z.enum(["read", "write", "propose", "query", "call", "refuse", "escalate"]),
   payload: z.object({
     message: z.string(),
     details: z.object({
@@ -15,7 +15,9 @@ export const IntentPacketSchema = z.object({
   }),
   auth: z.string().optional(),
   reply_to: z.string().optional(),
-  reasoning: z.string()
+  reasoning: z.string(),
+  confidence: z.number().optional(),
+  domain: z.string().optional()
 }).strict().superRefine((data, ctx) => {
   if (data.action === 'propose') {
     if (!data.payload.details?.strategy) {
