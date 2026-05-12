@@ -10,7 +10,7 @@ const db = new Database('relay_queue.db');
 db.exec(`
   CREATE TABLE IF NOT EXISTS queue (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, payload TEXT, processed INTEGER DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
   CREATE TABLE IF NOT EXISTS pending_mcqs (id TEXT PRIMARY KEY, question TEXT, options TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-  CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+  CREATE TABLE IF NOT EXISTS snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, data BLOB, checksum TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
 `);
 
 async function startRelay() {
@@ -60,8 +60,28 @@ async function startRelay() {
   });
 
   app.post('/snapshot', (req, res) => {
-    db.prepare('INSERT INTO snapshots (data) VALUES (?)').run(Buffer.from(req.body.data, 'hex'));
-    res.json({ ok: true });
+    const { data, checksum } = req.body;
+    const stmt = db.prepare('INSERT INTO snapshots (data, checksum) VALUES (?, ?)');
+    const info = stmt.run(Buffer.from(data, 'base64'), checksum);
+    
+    const row = db.prepare('SELECT strftime("%s", created_at) as ts FROM snapshots WHERE id = ?').get(info.lastInsertRowid) as any;
+    res.json({ 
+      ok: true,
+      timestamp: row ? parseInt(row.ts, 10) * 1000 : Date.now()
+    });
+  });
+
+  app.get('/snapshot', (req, res) => {
+    const row = db.prepare('SELECT data, checksum, strftime("%s", created_at) as ts FROM snapshots ORDER BY created_at DESC LIMIT 1').get() as any;
+    if (row) {
+      res.json({
+        data: row.data.toString('base64'),
+        checksum: row.checksum,
+        timestamp: parseInt(row.ts, 10) * 1000
+      });
+    } else {
+      res.status(404).json({ error: 'No snapshot found' });
+    }
   });
 
   app.listen(3001, '0.0.0.0', () => console.log('Relay listening on :3001'));

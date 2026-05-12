@@ -6,12 +6,21 @@ import { VadjanixAgent } from './agent.js';
 import { MCQCoordinator } from '../modules/autonomy/mcq_coordinator.js';
 import { ChannelManager } from '../channels/channel_manager.js';
 import { createAdapter } from '../infrastructure/adapters/AdapterFactory.js';
+import { SecureVault } from '../security/vault.js';
+import { SyncClient } from '../relay/sync_client.js';
 
 export class Bootstrapper {
     public static async ignite() {
         const app = express();
         app.use(express.json());
         
+        const masterPassword = process.env.MASTER_PASSWORD || 'default-password';
+        const vault = new SecureVault(masterPassword);
+        const syncClient = new SyncClient();
+
+        console.log('[SYSTEM] -> Checking for newer snapshots from relay...');
+        await syncClient.checkForNewerSnapshot(vault);
+
         const store = new MemoryStore();
         const cognitive = new CognitiveEngine();
         const memory = new VadjanixMemory(store, cognitive);
@@ -30,7 +39,7 @@ export class Bootstrapper {
 
         const { HeartbeatManager } = await import('../agent/heartbeat.js');
         const heartbeat = new HeartbeatManager();
-        heartbeat.start(agent);
+        heartbeat.start(agent, vault);
 
         return {
             agent,
