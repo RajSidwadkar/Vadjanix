@@ -23,10 +23,12 @@ memory/*.log
 memory/*.md
 .wwebjs_auth/
 .wwebjs_cache/
-
-# Ignore Vadjanix capsule data
+auth_info_baileys/
+soul/
 capsules/
-.capsule_backups
+.capsule_backups/
+.vault
+.vault.salt
 
 # Ignore log files
 *.log

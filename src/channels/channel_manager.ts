@@ -1,4 +1,4 @@
-import { ChannelAdapter, InboundMessage } from './types.js';
+import { ChannelAdapter, InboundMessage, SessionState } from './types.js';
 import { WhatsAppAdapter } from './whatsapp_adapter.js';
 import { TelegramAdapter } from './telegram_adapter.js';
 import { DiscordAdapter } from './discord_adapter.js';
@@ -20,6 +20,31 @@ export class ChannelManager {
   public async initialize(): Promise<void> {
     for (const [name, adapter] of this.adapters.entries()) {
       try {
+        console.log(`[CHANNEL - ${name.toUpperCase()}] Initializing...`);
+        
+        // Register this channel as an output channel in the agent
+        this.agent.registerOutputChannel(name, async (message: string) => {
+          if (adapter.isConnected()) {
+            // Find the active session for this channel
+            const sessions = (this.sessionManager as any).sessions as Map<string, SessionState>;
+            let targetJid = '';
+            for (const session of sessions.values()) {
+              if (session.lastChannel === name) {
+                targetJid = session.counterpartyId;
+                break;
+              }
+            }
+
+            if (targetJid) {
+              await adapter.send(targetJid, message);
+            } else {
+              console.warn(`[CHANNEL - ${name.toUpperCase()}] No active session found to send message.`);
+            }
+          } else {
+            console.warn(`[CHANNEL - ${name.toUpperCase()}] Cannot send message, adapter not connected.`);
+          }
+        });
+
         adapter.onMessage(async (msg: InboundMessage) => {
           console.log(`[CHANNEL - ${name.toUpperCase()}] Inbound from ${msg.from}`);
           
@@ -29,8 +54,11 @@ export class ChannelManager {
           // Handle via agent
           const response = await this.agent.handleIncomingMessage(name, msg.from, msg.content);
           
-          if (response) {
+          if (response && response.trim().length > 0) {
+            console.log(`[CHANNEL - ${name.toUpperCase()}] Sending response to ${msg.from}`);
             await adapter.send(msg.from, response);
+          } else {
+            console.log(`[CHANNEL - ${name.toUpperCase()}] No response generated (or READ_ONLY).`);
           }
         });
 

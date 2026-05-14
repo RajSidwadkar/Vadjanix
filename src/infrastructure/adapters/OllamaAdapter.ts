@@ -64,6 +64,7 @@ export class OllamaAdapter implements ILLMProvider {
       }
 
       const data = await response.json() as any;
+      console.log(`[LLM - LOCAL] Raw response from ${this.modelName}: ${data.response?.substring(0, 100)}...`);
       return {
         text: data.response,
         confidence: 0.72,
@@ -79,9 +80,22 @@ export class OllamaAdapter implements ILLMProvider {
     const timeout = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const response = await fetch('http://127.0.0.1:11434', { signal: controller.signal });
+      // First check if service is up
+      const response = await fetch('http://127.0.0.1:11434/api/tags', { signal: controller.signal });
       clearTimeout(timeout);
-      return response.ok;
+      
+      if (!response.ok) return false;
+      
+      const data = await response.json() as any;
+      const models = data.models || [];
+      
+      // Check if the requested model exists
+      // Ollama model names can be "model" or "model:tag"
+      return models.some((m: any) => 
+        m.name === this.modelName || 
+        m.name === `${this.modelName}:latest` ||
+        (this.modelName.includes(':') && m.name === this.modelName)
+      );
     } catch (error) {
       return false;
     }

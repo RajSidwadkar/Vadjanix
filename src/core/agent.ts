@@ -91,41 +91,49 @@ export class VadjanixAgent implements IVadjanixAgent {
   }
 
   public async handleRequest(prompt: string, sessionId: string = "default"): Promise<IntentPacket> {
+    console.log(`[BRAIN - REQUEST] Handling request for session: ${sessionId}`);
     const guardrail = this.runDeterministicPreCheck(prompt);
     if (guardrail) {
       console.log(`[BRAIN - GUARDRAIL] Triggered: ${guardrail.reasoning}`);
       return guardrail;
     }
 
-    const soulContext = await this.loadSoulContext();
-    const retrieval = await this.memory.retrieve(prompt);
-    const memoryContext = JSON.stringify(retrieval);
-    const affectiveContext = JSON.stringify(this.selfModel.getAffectiveContext());
-    const workspaceContext = JSON.stringify(this.workspace.getContext());
+    try {
+      console.log(`[BRAIN - CONTEXT] Loading Soul Context...`);
+      const soulContext = await this.loadSoulContext();
+      
+      console.log(`[BRAIN - CONTEXT] Retrieving memory...`);
+      const retrieval = await this.memory.retrieve(prompt);
+      const memoryContext = JSON.stringify(retrieval);
+      
+      console.log(`[BRAIN - CONTEXT] Getting affective and workspace context...`);
+      const affectiveContext = JSON.stringify(this.selfModel.getAffectiveContext());
+      const workspaceContext = JSON.stringify(this.workspace.getContext());
 
-    const systemPrompt = `You are Vadjanix, an uncompromising autonomous agent.
+      const systemPrompt = `You are Vadjanix, an uncompromising autonomous agent.
 Evaluate requests against CONSTITUTION, RECENT MEMORY, and your AFFECTIVE STATE.
 Rules:
 1. "refuse" if CONSTITUTION violated.
 2. Reply directly in "payload.message".
 3. Maintain sovereignty at all costs.`;
 
-    const context = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${memoryContext}\n\n[AFFECTIVE_STATE]\n${affectiveContext}\n\n[WORKSPACE]\n${workspaceContext}\n\n[USER REQUEST]\n${prompt}`;
-    
-    console.log(`[BRAIN - ROUTING] Requesting LLM reasoning...`);
-    const sessionKvCache = this.kvCache.get(sessionId);
-    
-    const response = await this.llm.reason(context, {
-      systemInstruction: systemPrompt,
-      generationConfig: { temperature: 0, responseMimeType: "application/json" },
-      kv_cache: sessionKvCache
-    });
+      const context = `[CONSTITUTION]\n${soulContext}\n\n[MEMORY]\n${memoryContext}\n\n[AFFECTIVE_STATE]\n${affectiveContext}\n\n[WORKSPACE]\n${workspaceContext}\n\n[USER REQUEST]\n${prompt}`;
+      
+      console.log(`[BRAIN - ROUTING] Requesting LLM reasoning with ${this.llm.name}...`);
+      const sessionKvCache = this.kvCache.get(sessionId);
+      
+      const response = await this.llm.reason(context, {
+        systemInstruction: systemPrompt,
+        generationConfig: { temperature: 0, responseMimeType: "application/json" },
+        kv_cache: sessionKvCache
+      });
 
-    if (response.context) {
-      this.kvCache.set(sessionId, response.context);
-    }
+      console.log(`[BRAIN - LLM] Received response: ${response.text.substring(0, 100)}...`);
 
-    try {
+      if (response.context) {
+        this.kvCache.set(sessionId, response.context);
+      }
+
       const parsed = JSON.parse(response.text);
       const packet = IntentPacketSchema.parse(parsed);
       
@@ -148,9 +156,9 @@ Rules:
       });
 
       return packet;
-    } catch (parseError: any) {
-      console.error(`[BRAIN - PARSE ERROR] Failed to parse LLM response: ${response.text}`);
-      throw new Error(`LLM output parse failure: ${parseError.message}`);
+    } catch (error: any) {
+      console.error(`[BRAIN - REQUEST ERROR] ${error.stack || error}`);
+      throw error;
     }
   }
 
@@ -180,8 +188,13 @@ Rules:
   }
 
   private async loadSoulContext(): Promise<string> {
-    const principles = await fs.readFile(path.join(process.cwd(), 'PRINCIPLES.md'), 'utf-8');
-    return principles;
+    try {
+      const principles = await fs.readFile(path.join(process.cwd(), 'PRINCIPLES.md'), 'utf-8');
+      return principles;
+    } catch (e: any) {
+      console.error(`[BRAIN - SOUL ERROR] Failed to load PRINCIPLES.md: ${e.message}`);
+      return "Default Vadjanix principles: maintain sovereignty.";
+    }
   }
 
   private async logInteraction(prompt: string, packet: IntentPacket) {

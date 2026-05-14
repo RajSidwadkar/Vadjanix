@@ -22,6 +22,12 @@ export class NostrAdapter implements ChannelAdapter {
 
   public async initialize(): Promise<void> {
     const pubkey = AgentIdentity.publicKey;
+    
+    // Safety check for pubkey length
+    if (pubkey.length !== 64) {
+      console.warn(`[CHANNEL - NOSTR] Warning: Nostr public key length is ${pubkey.length}, expected 64. This may cause relay errors.`);
+    }
+
     const filter: Filter = { kinds: [1], '#p': [pubkey] }; // NIP-01 and direct mentions
 
     this.pool.subscribeMany(

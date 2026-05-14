@@ -9,6 +9,7 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import fs from 'fs';
 import path from 'path';
+import qrcode from 'qrcode-terminal';
 import { ChannelAdapter, InboundMessage } from './types.js';
 
 export class WhatsAppAdapter implements ChannelAdapter {
@@ -37,21 +38,27 @@ export class WhatsAppAdapter implements ChannelAdapter {
     this.sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: true,
+      printQRInTerminal: false, // We'll handle it manually
       browser: ['Vadjanix', 'Chrome', '1.0.0']
     });
 
     this.sock.ev.on('creds.update', saveCreds);
 
     this.sock.ev.on('connection.update', (update: any) => {
-      const { connection, lastDisconnect } = update;
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        console.log('[CHANNEL - WHATSAPP] QR Code received. Scan with your phone:');
+        qrcode.generate(qr, { small: true });
+      }
+
       if (connection === 'close') {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
         console.log('WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
         this.connected = false;
         if (shouldReconnect) this.initialize();
       } else if (connection === 'open') {
-        console.log('WhatsApp connection opened');
+        console.log('[CHANNEL - WHATSAPP] Connection opened successfully');
         this.connected = true;
       }
     });
@@ -70,6 +77,11 @@ export class WhatsAppAdapter implements ChannelAdapter {
             const text = msg.message.conversation || 
                          msg.message.extendedTextMessage?.text || 
                          '';
+
+            if (!text || text.trim().length === 0) {
+              // Ignore empty messages (likely history placeholders or media we don't handle yet)
+              continue;
+            }
 
             if (this.messageHandler) {
               await this.messageHandler({

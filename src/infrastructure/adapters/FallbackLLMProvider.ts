@@ -30,8 +30,15 @@ export class FallbackLLMProvider implements ILLMProvider {
   }
 
   async isAvailable(): Promise<boolean> {
+    console.log(`[LLM - FALLBACK] 🔍 Checking availability for all providers...`);
     for (const provider of this.providers) {
-      if (await provider.isAvailable()) return true;
+      try {
+        const available = await provider.isAvailable();
+        console.log(`[LLM - FALLBACK]   - ${provider.name}: ${available ? '✅ AVAILABLE' : '❌ OFFLINE'}`);
+        if (available) return true;
+      } catch (error: any) {
+        console.warn(`[LLM - FALLBACK]   - ${provider.name}: ❌ ERROR (${error.message})`);
+      }
     }
     return false;
   }

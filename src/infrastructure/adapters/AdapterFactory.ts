@@ -12,22 +12,27 @@ export class SovereigntyOfflineError extends Error {
 }
 
 export async function createAdapter(config: { provider: string }): Promise<ILLMProvider> {
-  const slm_model = process.env.SLM_MODEL || 'gemma2:2b';
-  const llm_model = process.env.LLM_MODEL || 'llama3:8b';
+  const slm_model = process.env.SLM_MODEL || 'llama3.2:1b';
+  const llm_model = process.env.LLM_MODEL || 'llama3:latest';
 
   const slm = new OllamaAdapter(slm_model);
   const local_llm = new OllamaAdapter(llm_model);
   const cloud_llm = new GeminiAdapter();
 
+  // Additional opportunistic fallbacks based on common models
+  const secondary_slm = new OllamaAdapter('gemma2:2b');
+  const tertiary_slm = new OllamaAdapter('phi3');
+  const fallback_llama = new OllamaAdapter('llama3:8b');
+
   // Determine priority based on config
   let providers: ILLMProvider[];
   if (config.provider === 'gemini') {
-    providers = [cloud_llm, slm, local_llm];
+    providers = [cloud_llm, slm, local_llm, secondary_slm, fallback_llama];
   } else if (config.provider === 'local' || config.provider === 'llm') {
-    providers = [local_llm, slm, cloud_llm];
+    providers = [local_llm, slm, cloud_llm, secondary_slm, fallback_llama];
   } else {
     // Default: SLM first
-    providers = [slm, local_llm, cloud_llm];
+    providers = [slm, local_llm, secondary_slm, cloud_llm, fallback_llama, tertiary_slm];
   }
 
   const fallbackProvider = new FallbackLLMProvider(providers);
