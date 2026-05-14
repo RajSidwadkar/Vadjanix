@@ -54,6 +54,7 @@ export default class CognitiveRouter {
 
   public async route(input: string): Promise<RouteResult> {
     // L0 — Reflex: Load BOUNDARIES.json. Match condition strings against input.
+    // This is hard-gated to prevent LLM latency for known boundaries.
     const reflexMatch = this.checkReflex(input);
     if (reflexMatch) {
       return {
@@ -64,7 +65,7 @@ export default class CognitiveRouter {
       };
     }
 
-    // Special case for arithmetic as requested in prompt "Test L0 fires for arithmetic input"
+    // Special case for arithmetic
     if (/^\d+ \+ \d+$/.test(input)) {
         return {
             action: 'calculate_sum',
@@ -74,7 +75,8 @@ export default class CognitiveRouter {
         };
     }
 
-    // L1 — Episodic: Query episodic SQLite table. Cosine similarity via embed_client.ts. Threshold 0.88.
+    // L1 — Episodic: Query episodic SQLite table.
+    // Uses past experience to bypass LLM if threshold is met.
     const episodicMatch = await this.checkEpisodic(input);
     if (episodicMatch) {
       return episodicMatch;

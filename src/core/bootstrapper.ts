@@ -26,7 +26,13 @@ export class Bootstrapper {
         const memory = new VadjanixMemory(store, cognitive);
         const mcq = new MCQCoordinator();
         
-        const llmRouter = await createAdapter({ provider: process.env.DEFAULT_LLM || 'slm' });
+        let config = { provider: 'hybrid' };
+        try {
+            const configData = await fs.readFile(path.join(process.cwd(), 'config.json'), 'utf-8');
+            config = JSON.parse(configData);
+        } catch (e) {}
+
+        const llmRouter = await createAdapter({ provider: process.env.DEFAULT_LLM || config.provider || 'hybrid' }, vault);
         if (llmRouter.warmup) {
             // Non-blocking warmup
             llmRouter.warmup().catch(err => console.error('[SYSTEM - WARMUP ERROR]', err));

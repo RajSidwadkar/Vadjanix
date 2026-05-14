@@ -1,4 +1,4 @@
 {
-  "provider": "ollama",
-  "ollama_model": "phi3"
+  "provider": "hybrid",
+  "ollama_model": "llama3.2:1b"
 }

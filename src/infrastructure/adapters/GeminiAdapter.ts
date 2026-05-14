@@ -1,12 +1,24 @@
 import { ILLMProvider, LLMResponse } from './ILLMProvider.js';
 import 'dotenv/config';
+import { SecureVault } from '../../security/vault.js';
 
 export class GeminiAdapter implements ILLMProvider {
   public name = 'gemini';
   private model = 'gemini-1.5-flash';
 
+  constructor(private vault?: SecureVault) {}
+
   async reason(prompt: string, context?: any): Promise<LLMResponse> {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY;
+    let apiKey = process.env.GEMINI_API_KEY || process.env.GEMINI_KEY;
+    
+    if (this.vault) {
+      try {
+        apiKey = this.vault.get('GEMINI_KEY');
+      } catch (e) {
+        // Fallback to env if not in vault
+      }
+    }
+
     if (!apiKey) throw new Error("Missing GEMINI_API_KEY or GEMINI_KEY");
 
     // Use v1 for more stability if v1beta is failing

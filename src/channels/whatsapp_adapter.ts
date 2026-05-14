@@ -17,6 +17,7 @@ export class WhatsAppAdapter implements ChannelAdapter {
   private messageHandler?: (msg: InboundMessage) => Promise<void>;
   private connected = false;
   private contacts: any = { owner: '', protected: [], agents: [] };
+  private conflictCount = 0;
 
   constructor() {
     this._loadContacts();
@@ -38,13 +39,35 @@ export class WhatsAppAdapter implements ChannelAdapter {
     this.sock = makeWASocket({
       version,
       auth: state,
-      printQRInTerminal: false, // We'll handle it manually
-      browser: ['Vadjanix', 'Chrome', '1.0.0']
+      printQRInTerminal: false,
+      browser: ['Vadjanix', 'Chrome', '1.0.0'],
+      // Active Mode Fixes
+      shouldSyncHistory: false,
+      markOnlineOnConnect: true,
+      generateHighQualityLinkPreview: false, // Bypass privacy settings crash
     });
 
-    this.sock.ev.on('creds.update', saveCreds);
+    // 2-second debouncer for creds saving + Transactional Retry
+    let saveTimeout: NodeJS.Timeout | null = null;
+    this.sock.ev.on('creds.update', () => {
+      if (saveTimeout) clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(async () => {
+        try {
+          await saveCreds();
+        } catch (err) {
+          console.warn('[WHATSAPP] Auth save locked, retrying in 500ms...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            await saveCreds();
+          } catch (retryErr) {
+            console.error('[WHATSAPP] Fatal Auth Save Error:', retryErr);
+          }
+        }
+        saveTimeout = null;
+      }, 2000);
+    });
 
-    this.sock.ev.on('connection.update', (update: any) => {
+    this.sock.ev.on('connection.update', async (update: any) => {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
@@ -53,22 +76,53 @@ export class WhatsAppAdapter implements ChannelAdapter {
       }
 
       if (connection === 'close') {
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log('WhatsApp connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect);
+        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+        const isConflict = statusCode === 440 || lastDisconnect?.error?.message?.includes('conflict');
+        const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+        
+        console.log('WhatsApp connection closed. Status:', statusCode, 'Conflict:', isConflict);
         this.connected = false;
-        if (shouldReconnect) this.initialize();
+
+        if (shouldReconnect) {
+          if (isConflict) {
+            this.conflictCount++;
+            if (this.conflictCount > 3) {
+              console.error('\x1b[31m%s\x1b[0m', '[SYSTEM] -> Multiple Session Conflict Detected. Please close other WhatsApp Web tabs.');
+              return;
+            }
+            console.log(`[WHATSAPP] Conflict detected. Backing off for 5s (Attempt ${this.conflictCount}/3)...`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          } else {
+            this.conflictCount = 0; // Reset on normal disconnects
+          }
+          this.initialize();
+        }
       } else if (connection === 'open') {
         console.log('[CHANNEL - WHATSAPP] Connection opened successfully');
         this.connected = true;
+        this.conflictCount = 0;
       }
     });
 
     this.sock.ev.on('messages.upsert', async (m: { messages: proto.IWebMessageInfo[], type: string }) => {
       if (m.type === 'notify') {
         for (const msg of m.messages) {
-          if (!msg.key?.fromMe && msg.message) {
+          try {
             const jid = msg.key?.remoteJid!;
-            if (!jid || isJidBroadcast(jid) || isJidGroup(jid)) continue;
+            if (!jid) continue;
+
+            // Rule 1: IGNORE GROUPS AT DECRYPTION
+            if (jid.endsWith('@g.us') || isJidGroup(jid)) continue;
+            
+            if (isJidBroadcast(jid)) continue;
+
+            // Rule 2: PRE-EMPTIVE SESSION FILTER
+            if (msg.message?.protocolMessage || msg.message?.senderKeyDistributionMessage) {
+              continue;
+            }
+
+            // Preservation: Process self-messages (Hermit Protocol) or inbound
+            if (!msg.message) continue;
 
             // Contact classification FIRST
             const isOwner = jid === this.contacts.owner;
@@ -91,6 +145,13 @@ export class WhatsAppAdapter implements ChannelAdapter {
                 timestamp: (msg.messageTimestamp as number) * 1000,
                 raw: { isOwner, isProtected, msg }
               });
+            }
+          } catch (error: any) {
+            // Rule 3: SILENCE RE-ESTABLISHMENT LOGS
+            if (error.message?.includes('No session found to decrypt message')) {
+              console.log('\x1b[33m%s\x1b[0m', '[WHATSAPP] Establishing Secure Session...');
+            } else {
+              console.error('[CHANNEL - WHATSAPP] Error processing message:', error);
             }
           }
         }
