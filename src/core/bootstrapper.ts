@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'fs/promises';
+import path from 'path';
 import { MemoryStore } from '../modules/memory/store.js';
 import { CognitiveEngine } from '../modules/memory/engine.js';
 import { VadjanixMemory } from '../modules/memory/system.js';
