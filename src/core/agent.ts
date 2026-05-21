@@ -72,8 +72,7 @@ export class VadjanixAgent implements IVadjanixAgent {
           outcome: "READ_ONLY_ACCESS",
           emotional_valence: 0,
           importance: 0.1,
-          domain: 'protected',
-          read_only: 1
+          domain: 'protected'
         });
         return ""; // Empty string tells channel manager not to send a reply
       }

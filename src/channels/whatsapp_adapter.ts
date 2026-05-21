@@ -7,6 +7,7 @@ import makeWASocket, {
   proto
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
+import pino from 'pino';
 import fs from 'fs';
 import path from 'path';
 import qrcode from 'qrcode-terminal';
@@ -41,8 +42,9 @@ export class WhatsAppAdapter implements ChannelAdapter {
       auth: state,
       printQRInTerminal: false,
       browser: ['Vadjanix', 'Chrome', '1.0.0'],
+      logger: pino({ level: 'warn' }),
       // Active Mode Fixes
-      shouldSyncHistory: false,
+      shouldSyncHistoryMessage: () => false,
       markOnlineOnConnect: true,
       generateHighQualityLinkPreview: false, // Bypass privacy settings crash
     });
@@ -105,32 +107,39 @@ export class WhatsAppAdapter implements ChannelAdapter {
     });
 
     this.sock.ev.on('messages.upsert', async (m: { messages: proto.IWebMessageInfo[], type: string }) => {
-      if (m.type === 'notify') {
-        for (const msg of m.messages) {
-          try {
-            const jid = msg.key?.remoteJid!;
-            if (!jid) continue;
+      if (m.type !== 'notify') return;
+      
+      for (const msg of m.messages) {
+        try {
+          // 1. Completely ignore WhatsApp Status broadcast noise
+          if (msg.key?.remoteJid === 'status@broadcast') continue;
+          
+          // 2. Skip messages containing data phase protocol errors 
+          if (msg.messageStubType) continue;
 
-            // Rule 1: IGNORE GROUPS AT DECRYPTION
-            if (jid.endsWith('@g.us') || isJidGroup(jid)) continue;
-            
-            if (isJidBroadcast(jid)) continue;
+          const jid = msg.key?.remoteJid!;
+          if (!jid) continue;
 
-            // Rule 2: PRE-EMPTIVE SESSION FILTER
-            if (msg.message?.protocolMessage || msg.message?.senderKeyDistributionMessage) {
-              continue;
-            }
+          // Rule 1: IGNORE GROUPS AT DECRYPTION
+          if (jid.endsWith('@g.us') || isJidGroup(jid)) continue;
+          
+          if (isJidBroadcast(jid)) continue;
 
-            // Preservation: Process self-messages (Hermit Protocol) or inbound
-            if (!msg.message) continue;
+          // Rule 2: PRE-EMPTIVE SESSION FILTER
+          if (msg.message?.protocolMessage || msg.message?.senderKeyDistributionMessage) {
+            continue;
+          }
 
-            // Contact classification FIRST
-            const isOwner = jid === this.contacts.owner;
-            const isProtected = this.contacts.protected?.includes(jid);
-            
-            const text = msg.message.conversation || 
-                         msg.message.extendedTextMessage?.text || 
-                         '';
+          // Preservation: Process self-messages (Hermit Protocol) or inbound
+          if (!msg.message) continue;
+
+          // Contact classification FIRST
+          const isOwner = jid === this.contacts.owner;
+          const isProtected = this.contacts.protected?.includes(jid);
+          
+          const text = msg.message.conversation || 
+                       msg.message.extendedTextMessage?.text || 
+                       '';
 
             if (!text || text.trim().length === 0) {
               // Ignore empty messages (likely history placeholders or media we don't handle yet)
@@ -147,15 +156,15 @@ export class WhatsAppAdapter implements ChannelAdapter {
               });
             }
           } catch (error: any) {
-            // Rule 3: SILENCE RE-ESTABLISHMENT LOGS
-            if (error.message?.includes('No session found to decrypt message')) {
-              console.log('\x1b[33m%s\x1b[0m', '[WHATSAPP] Establishing Secure Session...');
+            // Rule 3: SILENCE RE-ESTABLISHMENT LOGS AND DECRYPTION ERRORS
+            if (error.message?.includes('decrypt') || error.message?.includes('No session found to decrypt message')) {
+              console.log('\x1b[33m%s\x1b[0m', '[WHATSAPP] Establishing Secure Session or Skipping Decryption Error...');
+              continue;
             } else {
               console.error('[CHANNEL - WHATSAPP] Error processing message:', error);
             }
           }
         }
-      }
     });
   }
 

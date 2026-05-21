@@ -6,4 +6,6 @@ export interface VadjanixAgent {
   runAutonomousActions(): Promise<void>;
   sendWhatsApp(message: string): Promise<void>;
   getSelfModel(): AgentSelfModel;
+  registerOutputChannel(name: string, sender: (msg: string) => Promise<void>): void;
+  handleIncomingMessage(platform: string, userId: string, message: string): Promise<string>;
 }
